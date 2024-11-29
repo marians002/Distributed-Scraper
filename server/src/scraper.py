@@ -2,13 +2,14 @@ import os
 import requests
 from bs4 import BeautifulSoup
 
+
 def fetch_html(urls):
     html_contents = {}
-    
+
     # Create 'htmls' directory if it doesn't exist
     if not os.path.exists('htmls'):
         os.makedirs('htmls')
-    
+
     for url in urls:
         try:
             response = requests.get(url)
@@ -16,16 +17,18 @@ def fetch_html(urls):
             soup = BeautifulSoup(response.text, 'html.parser')
             html_content = soup.prettify()
             html_contents[url] = html_content
-            
+
             # Save HTML content to file
-            filename = os.path.join('htmls', url.replace('https://', '').replace('http://', '').replace('/', '_') + '.html')
+            filename = os.path.join('htmls',
+                                    url.replace('https://', '').replace('http://', '').replace('/', '_') + '.html')
             with open(filename, 'w', encoding='utf-8') as file:
                 file.write(html_content)
         except requests.exceptions.RequestException as e:
             print(f"Error fetching {url}: {e}")
             html_contents[url] = None
-    
+
     return html_contents
+
 
 # Example usage
 urls = [

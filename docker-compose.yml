@@ -1,0 +1,17 @@
+version: '3'
+services:
+  client:
+    build: ./client
+    ports:
+      - "5000:5000"  # Exponiendo el puerto del frontend
+
+  server:
+    build: ./server
+
+  router:
+    build: ./router
+    ports:
+      - "8000:8000"  # Exponiendo el puerto del router
+    depends_on:
+      - client
+      - server
