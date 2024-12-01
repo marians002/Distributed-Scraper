@@ -1,12 +1,13 @@
-FROM python:3.11-slim
+# Dockerfile
+FROM base_client:latest
 
 WORKDIR /app
 
-COPY . .
+COPY client/client.py ./client.py
+COPY client/client.sh /usr/local/bin/client.sh
 
-RUN pip install -r ./requirements.txt
-RUN chmod +x ./client.sh
+RUN chmod +x /usr/local/bin/client.sh
 
 EXPOSE 5000
 
-ENTRYPOINT ["/bin/bash", "-c", "/app/client.sh && python /app/client.py"]
+ENTRYPOINT ["/bin/bash", "-c", "/usr/local/bin/client.sh && python /app/client.py"]

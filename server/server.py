@@ -9,10 +9,11 @@ if __name__ == '__main__':
     try:
         while True:
             client_socket, client_address = s.accept()
-            # client_thread = threading.Thread(target=x, args=(client_socket, client_address))
-            # client_thread.start()
+            data = client_socket.recv(1024)
+            if data == b'ping':
+                print(f"Server says: Received ping from {client_address}")
+            client_socket.close()
     except KeyboardInterrupt:
-        print("[INFO] Apagando el servidor.")
+        print("[INFO] Shutting down the server.")
     finally:
         s.close()
-
