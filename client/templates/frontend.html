@@ -1,0 +1,76 @@
+<html lang="en">
+<head>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebScraper Pro - Professional Data Extraction Services</title>
+  <link rel="stylesheet" href="../static/styles.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8 8 8-3.59 8-8-3.59-8-8-8zm-5-9h10v2H7z"/>
+      </svg>
+      <h1>WebScraper Pro</h1>
+    </div>
+    <button class="btn" onclick="showLoginForm()">Login</button>
+  </nav>
+
+  <div class="container">
+    <div class="login-form" id="loginForm">
+      <h2>Login to WebScraper Pro</h2>
+      <div class="success-message" id="successMessage">Successfully logged in!</div>
+      <div class="error-message" id="errorMessage">Invalid credentials. Please try again.</div>
+      <form onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" required>
+        </div>
+        <button type="submit" class="btn">Login</button>
+      </form>
+    </div>
+
+    <div class="recommendations">
+      <div class="card">
+        <h3>E-commerce Scraping</h3>
+        <p>Extract product data, prices, and reviews from major e-commerce platforms:</p>
+        <ul>
+          <li>Amazon</li>
+          <li>eBay</li>
+          <li>Walmart</li>
+          <li>Shopify stores</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Social Media Analysis</h3>
+        <p>Gather insights from social platforms:</p>
+        <ul>
+          <li>Twitter trends</li>
+          <li>LinkedIn profiles</li>
+          <li>Instagram metrics</li>
+          <li>Facebook pages</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Real Estate Data</h3>
+        <p>Collect property information from:</p>
+        <ul>
+          <li>Zillow</li>
+          <li>Realtor.com</li>
+          <li>Trulia</li>
+          <li>Local MLS listings</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="scripts.js"></script>
+</body>
+</html>

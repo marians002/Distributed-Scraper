@@ -1,10 +1,6 @@
-FROM python:3.9-slim
+from alpine
 
-WORKDIR /app
+run echo "net.ipv4.ip_forward=1" | tee -a /etc/sysctl.conf
+run sysctl -p
 
-COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
-
-COPY . .
-
-CMD ["python", "router.py"]
+cmd /bin/sh
