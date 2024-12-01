@@ -1,10 +1,12 @@
-FROM python:3.9-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY requirements.txt requirements.txt
+COPY . /app
+
 RUN pip install -r requirements.txt
+RUN chmod +x /app/server.sh
 
-COPY . .
+EXPOSE 5000
 
-CMD ["python", "main.py"]
+ENTRYPOINT ["/bin/bash", "-c", "/app/server.sh && python /app/server.py"]
