@@ -56,3 +56,29 @@ document.querySelectorAll('.card').forEach(card => {
     this.style.transform = 'translateY(0)';
   });
 });
+
+function handleScrape(event) {
+  event.preventDefault();
+  const url = document.getElementById('url').value;
+  const scrapeOption = document.getElementById('scrapeOption').value;
+
+  fetch('/scrape', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      'url': url,
+      'scrapeOption': scrapeOption
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    console.log(data);
+    // Display the scraped data to the user
+    alert(`Scraped Data: ${data.data}`);
+  })
+  .catch(error => {
+    console.error('Error:', error);
+  });
+}
