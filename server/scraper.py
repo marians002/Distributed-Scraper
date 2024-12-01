@@ -2,6 +2,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from DB_manager import store_data
 
 def fetch_html(urls, settings):
     html_contents = {}
@@ -49,6 +50,9 @@ def fetch_html(urls, settings):
 
             extra_info[url] = {'images': downloaded_images, 'links': links}
 
+            # Store data in the database
+            store_data(url, html_content, links, downloaded_images)
+
         except requests.exceptions.RequestException as e:
             print(f"Error fetching {url}: {e}")
             html_contents[url] = None
@@ -64,18 +68,3 @@ def fetch_html(urls, settings):
         filtered_extra_info[url] = filtered_info
 
     return html_contents, filtered_extra_info
-
-# example of usage
-urls=[
-        'https://www.example.com',
-        'https://www.python.org'
-]
-settings={
-        'extract_images': True,
-        'extract_links': True
-    }
-html_texts, extra_info = fetch_html(urls, settings)
-for url, html in html_texts.items():
-    print(f"HTML content for {url} saved.\n")
-    if url in extra_info:
-        print(f"Extra info for {url}: {extra_info[url]}")
