@@ -1,9 +1,22 @@
-import json
+from flask import Flask, request, jsonify
 from scraper import fetch_html
 from DB_manager import fetch_data_from_db, init_db, show_data, delete_data
 
+app = Flask(__name__)
+
 # Initialize the database
 init_db()
+
+
+@app.route('/scrape', methods=['POST'])
+def scrape_endpoint():
+    data = request.json
+    urls = data.get('urls', [])
+    settings = data.get('settings', {})
+    results = scrape(urls, settings)
+    # print(results)
+    return results
+
 
 def scrape(urls, settings):
     results = {}
@@ -24,21 +37,6 @@ def scrape(urls, settings):
             }
     return results
 
-def main():
-    urls = [
-        'https://www.example.com',
-        'https://www.python.org'
-    ]
-    settings = {
-        'extract_images': True,
-        'extract_links': True
-    }
-    results = scrape(urls, settings)
-    
-    # Print the information for a single URL
-    url_to_print = urls[0]
-    print(f"Information for {url_to_print}:")
-    show_data(url_to_print)
 
 if __name__ == '__main__':
-    main()
+    app.run(host='0.0.0.0', port=5001)
