@@ -1,26 +1,8 @@
-import socket
-
-if __name__ == '__main__':
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.bind(("0.0.0.0", 5000))
-    s.listen(1)
-    print("Server says: Listening on 0.0.0.0:5000")
-
-    try:
-        while True:
-            client_socket, client_address = s.accept()
-            data = client_socket.recv(1024)
-            if data == b'ping':
-                print(f"Server says: Received ping from {client_address}")
-                client_socket.sendall(b'pong')
-            client_socket.close()
-    except KeyboardInterrupt:
-        print("[INFO] Shutting down the server.")
-    finally:
-        s.close()
 from flask import Flask, request, jsonify
-from scraper import fetch_html
-from DB_manager import fetch_data_from_db, init_db, show_data, delete_data
+from html_fetcher import fetch_html
+from DB_manager import fetch_data_from_db, init_db
+import socket
+import threading
 
 app = Flask(__name__)
 
@@ -34,8 +16,7 @@ def scrape_endpoint():
     urls = data.get('urls', [])
     settings = data.get('settings', {})
     results = scrape(urls, settings)
-    # print(results)
-    return results
+    return jsonify(results)
 
 
 def scrape(urls, settings):
@@ -58,5 +39,31 @@ def scrape(urls, settings):
     return results
 
 
+def handle_client_connection(client_socket):
+    request_data = client_socket.recv(4096)
+    print("Received request data")
+    request_dict = eval(request_data.decode())
+    url = request_dict['url']
+    settings = request_dict['settings']
+    results = scrape([url], settings)
+    print("Sending results")
+    client_socket.sendall(str(results).encode())
+    print("Results sent")
+    client_socket.close()
+
+
+def start_server():
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.bind(("0.0.0.0", 5002))
+    server_socket.listen(5)
+    print("Server says: Listening on 0.0.0.0:5002")
+
+    while True:
+        client_socket, _ = server_socket.accept()
+        client_handler = threading.Thread(target=handle_client_connection, args=(client_socket,))
+        client_handler.start()
+
+
 if __name__ == '__main__':
+    threading.Thread(target=start_server).start()
     app.run(host='0.0.0.0', port=5001)

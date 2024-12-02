@@ -20,12 +20,6 @@ def fetch_html(urls, settings):
             html_content = soup.prettify()
             html_contents[url] = html_content
 
-            # Save HTML content to file
-            filename = os.path.join('htmls',
-                                    url.replace('https://', '').replace('http://', '').replace('/', '_') + '.html')
-            with open(filename, 'w', encoding='utf-8') as file:
-                file.write(html_content)
-
             # Always extract images and links
             image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg']
             images = [urljoin(url, img['src']) for img in soup.find_all('img') if 'src' in img.attrs and any(img['src'].endswith(ext) for ext in image_extensions)]

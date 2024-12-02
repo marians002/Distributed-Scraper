@@ -1,13 +1,12 @@
 # Dockerfile
-FROM base_client:latest
+FROM client_base:latest
 
 WORKDIR /app
 
-COPY client/client.py ./client.py
-COPY client/client.sh /usr/local/bin/client.sh
+COPY client/ /app/
 
-RUN chmod +x /usr/local/bin/client.sh
+RUN chmod +x /app/client.sh
 
 EXPOSE 5000
 
-ENTRYPOINT ["/bin/bash", "-c", "/usr/local/bin/client.sh && python /app/client.py"]
+ENTRYPOINT ["/bin/bash", "-c", "/app/client.sh && python /app/client.py"]
