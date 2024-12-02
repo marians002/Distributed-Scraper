@@ -5,6 +5,8 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
+# SERVER_IP = "10.0.11.2"
+# SERVER_PORT = "5001"
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 5002
 
