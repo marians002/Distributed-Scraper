@@ -1,7 +1,9 @@
 from flask import Flask, render_template, request, jsonify
 import requests
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
 
 @app.route('/')
@@ -14,24 +16,17 @@ def scrape():
     url = request.form['url']
     scrape_option = request.form['scrapeOption']
 
-    # Perform the scraping based on the selected option
-    if scrape_option == 'html':
-        response = requests.get(url)
-        data = response.text
-    elif scrape_option == 'links':
-        response = requests.get(url)
-        data = extract_links(response.text)
-    elif scrape_option == 'archives':
-        data = "Archives scraping not implemented yet"
-    else:
-        data = "Invalid option"
+    settings = {
+        'extract_images': scrape_option == 'images',
+        'extract_links': scrape_option == 'links'
+    }
 
-    return jsonify({'data': data})
+    response = requests.post('http://127.0.0.1:5001/scrape', json={'urls': [url], 'settings': settings})
+    data = response.json()
+    print(data['https://github.com/Alej0prepper/ditributed-systems-project-fall-2024/tree/main/src/network'])
 
+    return jsonify(data)
 
-def extract_links(html):
-    # Implement link extraction logic
-    return "Links extraction not implemented yet"
 
 if __name__ == '__main__':
     app.run(debug=True)

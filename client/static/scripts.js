@@ -76,8 +76,7 @@ function handleScrape(event) {
   .then(data => {
     console.log(data);
     // Display the scraped data to the user
-    alert(`Scraped Data: ${data.data}`);
-  })
+  alert(`Scraped Data: ${JSON.stringify(data, null, 2)}`);  })
   .catch(error => {
     console.error('Error:', error);
   });
