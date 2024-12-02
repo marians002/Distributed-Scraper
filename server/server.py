@@ -12,6 +12,7 @@ if __name__ == '__main__':
             data = client_socket.recv(1024)
             if data == b'ping':
                 print(f"Server says: Received ping from {client_address}")
+                client_socket.sendall(b'pong')
             client_socket.close()
     except KeyboardInterrupt:
         print("[INFO] Shutting down the server.")
