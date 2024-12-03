@@ -1,3 +1,5 @@
+#!/bin/bash
+
 set +o verbose
 
 # check clients docker networks existence

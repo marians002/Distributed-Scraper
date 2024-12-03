@@ -54,7 +54,7 @@ def handle_client_connection(client_socket):
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(("0.0.0.0", 5002))
+    server_socket.bind(("0.0.0.0", 5004))
     server_socket.listen(5)
     print("Server says: Listening on 0.0.0.0:5002")
 
@@ -66,4 +66,4 @@ def start_server():
 
 if __name__ == '__main__':
     threading.Thread(target=start_server).start()
-    app.run(host='0.0.0.0', port=5001)
+    app.run(host='0.0.0.0', port=5006)

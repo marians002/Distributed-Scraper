@@ -4,6 +4,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from DB_manager import store_data
 
+
 def fetch_html(urls, settings):
     html_contents = {}
     extra_info = {}
@@ -22,11 +23,14 @@ def fetch_html(urls, settings):
 
             # Always extract images and links
             image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg']
-            images = [urljoin(url, img['src']) for img in soup.find_all('img') if 'src' in img.attrs and any(img['src'].endswith(ext) for ext in image_extensions)]
-            links = [a['href'] for a in soup.find_all('a') if 'href' in a.attrs and (a['href'].startswith('http://') or a['href'].startswith('https://'))]
+            images = [urljoin(url, img['src']) for img in soup.find_all('img') if
+                      'src' in img.attrs and any(img['src'].endswith(ext) for ext in image_extensions)]
+            links = [a['href'] for a in soup.find_all('a') if
+                     'href' in a.attrs and (a['href'].startswith('http://') or a['href'].startswith('https://'))]
 
             # Download images and save them in a directory corresponding to each URL
-            image_dir = os.path.join('htmls', url.replace('https://', '').replace('http://', '').replace('/', '_') + '_images')
+            image_dir = os.path.join('htmls',
+                                     url.replace('https://', '').replace('http://', '').replace('/', '_') + '_images')
             if not os.path.exists(image_dir):
                 os.makedirs(image_dir)
 
@@ -36,8 +40,7 @@ def fetch_html(urls, settings):
                     img_response = requests.get(img_url)
                     img_response.raise_for_status()
                     img_name = os.path.join(image_dir, os.path.basename(img_url))
-                    with open(img_name, 'wb') as img_file:
-                        img_file.write(img_response.content)
+
                     downloaded_images.append(img_name)
                 except requests.exceptions.RequestException as e:
                     print(f"Error downloading image {img_url}: {e}")
