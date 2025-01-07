@@ -63,6 +63,31 @@ body {
   display: none;
 }
 
+#scrapedData {
+  display: none;
+  margin-top: 2%;
+}
+
+.scraped-text {
+  margin: 2% 2% 2% 0;
+  position: relative;
+}
+
+
+#copy-btn {
+  margin: 1% 1% 1% 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: none;
+  width: -webkit-fill-available;
+  align-items: center;
+}
+
+.copy-svg {
+  margin-left: 2%;
+}
+
 .form-group {
   margin-bottom: 1rem;
 }

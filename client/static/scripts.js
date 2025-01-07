@@ -57,6 +57,10 @@ document.querySelectorAll('.card').forEach(card => {
   });
 });
 
+// Add copy button
+document.getElementById("copyButton").addEventListener("click", function() { var textarea = document.getElementById("myTextarea"); textarea.select(); document.execCommand("copy"); alert("Text copied to clipboard!"); });
+
+
 function handleScrape(event) {
   event.preventDefault();
   const url = document.getElementById('url').value;
@@ -75,9 +79,22 @@ function handleScrape(event) {
   .then(response => response.json())
   .then(data => {
     console.log(data);
-    // Display the scraped data to the user
-  alert(`Scraped Data: ${JSON.stringify(data, null, 2)}`);  })
+    // Display the scraped data in the textarea
+    const scrapedDataTextarea = document.getElementById('scrapedData');
+    const copyBut = document.getElementById('copy-btn');
+    scrapedDataTextarea.style.display = 'block';
+    copyBut.style.display = 'flex';
+    scrapedDataTextarea.value = JSON.stringify(data, null, 2)
+ // Added code to display the data in a textarea
+  })
   .catch(error => {
     console.error('Error:', error);
   });
+}
+
+function copyToClipboard() {
+  const textarea = document.getElementById('scrapedData');
+  textarea.select();
+  document.execCommand('copy');
+  alert('Copied to clipboard');
 }

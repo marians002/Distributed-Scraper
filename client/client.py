@@ -7,6 +7,7 @@ CORS(app)
 
 SERVER_IP = "10.0.11.2"
 SERVER_PORT = 5004
+# SERVER_IP = "127.0.0.1"
 
 
 @app.route('/')
@@ -36,7 +37,16 @@ def send_request_to_server(url, settings):
         request_data = {'url': url, 'settings': settings}
         s.sendall(str(request_data).encode())
         print("Waiting for response from server...")
-        data = s.recv(4096)
+
+
+        # Receive the response in parts and concatenate them
+        data = b""
+        while True:
+            part = s.recv(4096)
+            if not part:
+                break
+            data += part
+
         print("Received response from server")
         return eval(data.decode())
 
