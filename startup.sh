@@ -1,72 +1,115 @@
 #!/bin/bash
 
-# Configuración de las redes
-CLIENTS_NET="clients"
-SERVERS_NET="servers"
-CLIENTS_SUBNET="10.0.10.0/24"
-SERVERS_SUBNET="10.0.11.0/24"
+# Function to check if a Docker network exists
+network_exists() {
+    docker network ls --format '{{.Name}}' | grep -q "^$1$"
+}
 
-# Configuración de contenedores
-ROUTER_NAME="router"
-ROUTER_CLIENTS_IP="10.0.10.254"
-ROUTER_SERVERS_IP="10.0.11.254"
+# Function to check if a Docker image exists
+image_exists_timage_exists_tagag() {
+    IMAGE_NAME=$1
+    IMAGE_TAG=$2
 
-SERVER_NAME="server1"
-SERVER_IP="10.0.11.2"
-SERVER_PORT=5000
+    if [ $(docker images -q ${IMAGE_NAME}:${IMAGE_TAG}) ]; then
+        return 0  # Image exists
+    else
+        return 1  # Image does not exist
+    fi
+}
 
-CLIENT_IMAGE="client:latest"
-SERVER_IMAGE="server:latest"
-ROUTER_IMAGE="router:latest"
-BASE_IMAGE="server:base"  # Nombre de la imagen base
+# Function to check if a Docker image exists
+image_exists() {
+    docker images --format '{{.Repository}}' | grep -q "^$1$"
+}
 
-CLIENT_BASE_IP="10.0.10."
-CLIENT_START_PORT=3000
-NUM_CLIENTS=1
+# Restart Docker service
+sudo systemctl restart docker
 
-# Directorios de los Dockerfiles
-ROUTER_DIR="./router"
-SERVER_DIR="./server"
-CLIENT_DIR="./client"
-BASE_DIR="./"  # Directorio del Dockerfile base
+# Create networks if they don't exist
+if ! network_exists "clients"; then
+    echo "Creating network 'clients'..."
+    docker network create clients --subnet 10.0.10.0/24
+else
+    echo "Network 'clients' already exists."
+fi
 
-# Iniciar clientes
-echo "Iniciando clientes..."
-for i in $(seq 1 $NUM_CLIENTS); do
-  CLIENT_NAME="client$i"
-  CLIENT_IP="${CLIENT_BASE_IP}$((1 + i))"
-  CLIENT_HOST_PORT=$((CLIENT_START_PORT + i - 1))
-  echo "Iniciando $CLIENT_NAME en IP $CLIENT_IP y puerto $CLIENT_HOST_PORT..."
-  docker run --rm -d --name $CLIENT_NAME --cap-add NET_ADMIN \
-    --network $CLIENTS_NET --ip $CLIENT_IP -p $CLIENT_HOST_PORT:3000 $CLIENT_IMAGE || { echo "Error al iniciar el cliente $CLIENT_NAME";  }
-done
+if ! network_exists "servers"; then
+    echo "Creating network 'servers'..."
+    docker network create servers --subnet 10.0.11.0/24
+else
+    echo "Network 'servers' already exists."
+fi
 
-# Iniciar servidor
-echo "Iniciando servidor..."
-docker run --rm -d --name $SERVER_NAME --cap-add NET_ADMIN \
-  --network $SERVERS_NET --ip $SERVER_IP -p $SERVER_PORT:$SERVER_PORT $SERVER_IMAGE || { echo "Error al iniciar el servidor";   }
+# Check and build router:base image
+ROUTER_BASE_TAG="base"
+if ! image_exists_tag "router" "$ROUTER_BASE_TAG"; then
+    echo "Building router_base image..."
+    docker build -t router:$ROUTER_BASE_TAG -f router/router_base.Dockerfile .
+else
+    echo "Router:base image already exists."
+fi
 
-# Configura reglas de iptables en el router
-echo "Configurando reglas de iptables en el router..."
-docker exec $ROUTER_NAME sh -c "iptables -t nat -A PREROUTING -p tcp --dport $SERVER_PORT -j DNAT --to-destination $SERVER_IP:$SERVER_PORT;"
-docker exec $ROUTER_NAME sh -c "iptables -t nat -A POSTROUTING -j MASQUERADE"
+# Check and build router image
+ROUTER_TAG="latest"
+if ! image_exists_tag "router" "$ROUTER_TAG"; then
+    echo "Building router image..."
+    docker build -t router:$ROUTER_TAG -f router/router.Dockerfile .
+else
+    echo "Router image already exists."
+fi
 
-# Reglas de iptables para los clientes
-for i in $(seq 1 $NUM_CLIENTS); do
-  CLIENT_IP="10.0.10.$((1 + i))"
-  CLIENT_PORT=$((CLIENT_START_PORT + i - 1))
-  echo "Configurando iptables para cliente$i en puerto $CLIENT_PORT..."
-  docker exec $ROUTER_NAME sh -c "
-    iptables -t nat -A PREROUTING -p tcp --dport $CLIENT_PORT -j DNAT --to-destination $CLIENT_IP:3000;
-  "
-done
+# Check if the router container is already running
+if [ $(docker ps -q -f name=router) ]; then
+    echo "Router container is already running."
+else
+    echo "Running router container..."
+    docker run -itd --rm --name router router
+fi
 
-# Mensajes de éxito y accesos
-echo "Sistema levantado con éxito!"
-echo "Accede a los contenedores desde:"
-for i in $(seq 1 $NUM_CLIENTS); do
-  CLIENT_IP="${CLIENT_BASE_IP}$((1 + i))"
-  CLIENT_HOST_PORT=$((CLIENT_START_PORT + i - 1))
-  echo "  Cliente$i: http://$CLIENT_IP:$CLIENT_HOST_PORT"
-done
-echo "  Servidor: http://$SERVER_IP:$SERVER_PORT"
+echo "Connecting router to networks..."
+docker network connect --ip 10.0.10.254 clients router
+docker network connect --ip 10.0.11.254 servers router
+
+# Check and build client_base image
+if ! image_exists "client_base"; then
+    echo "Building client_base image..."
+    docker build -t client_base -f client/Dockerfile.base .
+else
+    echo "Client_base image already exists."
+fi
+
+# Check and build client image
+if ! image_exists "client"; then
+    echo "Building client image..."
+    docker build -t client -f client/client.Dockerfile .
+else
+    echo "Client image already exists."
+fi
+
+# Check and build server_base image
+if ! image_exists "server_base"; then
+    echo "Building server_base image..."
+    docker build -t server_base -f server/Dockerfile.base .
+else
+    echo "Server_base image already exists."
+fi
+
+# Check and build server image
+if ! image_exists "server"; then
+    echo "Building server image..."
+    docker build -t server -f server/server.Dockerfile .
+else
+    echo "Server image already exists."
+fi
+
+# Run server container
+echo "Running server container..."
+docker run --rm -d --name server1 --cap-add NET_ADMIN --network servers server
+
+# Run client container
+echo "Running client container..."
+docker run --rm -d --name client1 --cap-add NET_ADMIN --network clients client
+
+# Inspect behavior of server1
+echo "Inspecting server1 logs..."
+docker logs -f server1
