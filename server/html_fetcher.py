@@ -9,10 +9,6 @@ def fetch_html(urls, settings):
     html_contents = {}
     extra_info = {}
 
-    # Create 'htmls' directory if it doesn't exist
-    if not os.path.exists('htmls'):
-        os.makedirs('htmls')
-
     for url in urls:
         try:
             response = requests.get(url)
@@ -28,33 +24,43 @@ def fetch_html(urls, settings):
             if settings.get('extract_css', False):
                 # Inline CSS
                 for style in soup.find_all('style'):
-                    css_content.append(style.string)
+                    if style.string:
+                        css_content.append(style.string)
+
                 # External CSS
                 for link in soup.find_all('link', rel='stylesheet'):
-                    css_url = urljoin(url, link['href'])
-                    try:
-                        css_response = requests.get(css_url)
-                        css_response.raise_for_status()
-                        css_content.append(css_response.text)
-                    except requests.exceptions.RequestException as e:
-                        print(f"Error fetching CSS {css_url}: {e}")
+                    css_url = link.get('href')
+                    if css_url:
+                        # Handle relative URLs
+                        if not css_url.startswith(('http://', 'https://')):
+                            css_url = urljoin(url, css_url)
+                        try:
+                            css_response = requests.get(css_url)
+                            css_response.raise_for_status()
+                            css_content.append(css_response.text)
+                        except requests.exceptions.RequestException as e:
+                            print(f"Error fetching CSS {css_url}: {e}")
 
             # Extract JavaScript
             js_content = []
             if settings.get('extract_js', False):
                 # Inline JS
                 for script in soup.find_all('script'):
-                    if script.string:
+                    if script.string:  # Check if the script tag contains JavaScript code
                         js_content.append(script.string)
-                # External JS
-                for script in soup.find_all('script', src=True):
-                    js_url = urljoin(url, script['src'])
-                    try:
-                        js_response = requests.get(js_url)
-                        js_response.raise_for_status()
-                        js_content.append(js_response.text)
-                    except requests.exceptions.RequestException as e:
-                        print(f"Error fetching JS {js_url}: {e}")
+
+                    # External JS
+                    elif script.get('src'):
+                        js_url = script.get('src')
+                        if not js_url.startswith(('http://', 'https://')):
+                            # Handle relative URLs
+                            js_url = urljoin(url, js_url)
+                        try:
+                            js_response = requests.get(js_url)
+                            js_response.raise_for_status()
+                            js_content.append(js_response.text)
+                        except requests.exceptions.RequestException as e:
+                            print(f"Error fetching JavaScript {js_url}: {e}")
 
             # Store all extracted data
             extra_info[url] = {
