@@ -29,7 +29,6 @@ def scrape():
     response = send_request_to_server(url, settings)
     return response
 
-#region OK
 def send_request_to_server(url, settings):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.connect((SERVER_IP, SERVER_PORT))

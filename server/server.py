@@ -6,14 +6,6 @@ import json
 
 app = Flask(__name__)
 
-# def send_request_to_db_manager(request_dict):
-#     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     client_socket.connect(("0.0.0.0", 5008))
-#     client_socket.sendall(json.dumps(request_dict).encode())
-#     response_data = client_socket.recv(4096)
-#     client_socket.close()
-#     return json.loads(response_data.decode())
-
 @app.route('/scrape', methods=['POST'])
 def scrape_endpoint():
     data = request.json
@@ -28,14 +20,14 @@ def scrape(urls, settings):
         # Initialize the result dictionary for the current URL
         results[url] = {}
 
-        # Fetch data from the database if available
         # Fetch data from the database
         request_dict = {'action': 'fetch', 'url': url}
         response = send_request_to_db_manager(request_dict)
         response = eval(response)
         html_content = response.get('html_content')
         
-        html_content, css_content, js_content = fetch_data_from_db(url)
+        css_content = response.get('css')
+        js_content = response.get('js')
 
         # Check if HTML is requested and available in the database
         if settings.get('extract_html', False):
@@ -66,7 +58,6 @@ def scrape(urls, settings):
 
     return results
 
-#region OK
 def handle_client_connection(client_socket):
     request_data = client_socket.recv(4096)
     print("Received request data")

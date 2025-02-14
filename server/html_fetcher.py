@@ -9,9 +9,7 @@ def send_request_to_db_manager(request_dict):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
         server_socket.connect(("0.0.0.0", 5008))
         print("Connected to DB")
-        
-        print("REQUEST DICT IN FETCHER: ", request_dict)
-        
+                
         server_socket.sendall(str(request_dict).encode())
         
         print("WAITING FOR DB RESPONSE")
@@ -27,7 +25,6 @@ def send_request_to_db_manager(request_dict):
             
         print("Recieved data from db")
         
-        # server_socket.close()
         return r_data.decode()
 
 def fetch_html(urls, settings):
@@ -98,8 +95,8 @@ def fetch_html(urls, settings):
                 'action': 'store',
                 'url': url,
                 'html_content': html_content,
-                'links': css_content,
-                'images': js_content
+                'css': css_content,
+                'js': js_content
             }
             send_request_to_db_manager(request_dict)
 
