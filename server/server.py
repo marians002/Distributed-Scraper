@@ -25,28 +25,45 @@ def scrape_endpoint():
 def scrape(urls, settings):
     results = {}
     for url in urls:
+        # Initialize the result dictionary for the current URL
+        results[url] = {}
+
+        # Fetch data from the database if available
         # Fetch data from the database
         request_dict = {'action': 'fetch', 'url': url}
         response = send_request_to_db_manager(request_dict)
         response = eval(response)
         html_content = response.get('html_content')
-        links = response.get('links', [])
-        images = response.get('images', [])
         
-        if html_content:
-            results[url] = {
-                'html': html_content if settings.get('extract_html', False) else None,
-                'links': links if settings.get('extract_links', False) else None,
-                'images': images if settings.get('extract_images', False) else None,
-            }
-        else:
-            # Fetch data from the web if not in the database
-            html_contents, extra_info = fetch_html([url], settings)
-            results[url] = {
-                'html': html_contents.get(url) if settings.get('extract_html', False) else None,
-                'links': extra_info.get(url, {}).get('links', []) if settings.get('extract_links', False) else None,
-                'images': extra_info.get(url, {}).get('images', []) if settings.get('extract_images', False) else None,
-            }
+        html_content, css_content, js_content = fetch_data_from_db(url)
+
+        # Check if HTML is requested and available in the database
+        if settings.get('extract_html', False):
+            if html_content:
+                results[url]['html'] = html_content[0]
+            else:
+                # Fetch HTML from the web if not in the database
+                html_contents, _ = fetch_html([url], {'extract_html': True})
+                results[url]['html'] = html_contents.get(url)
+
+        # Check if CSS is requested and available in the database
+        if settings.get('extract_css', False):
+            if css_content:
+                results[url]['css'] = css_content[0]
+            else:
+                # Fetch CSS from the web if not in the database
+                _, extra_info = fetch_html([url], {'extract_css': True})
+                results[url]['css'] = extra_info.get(url, {}).get('css', [])
+
+        # Check if JavaScript is requested and available in the database
+        if settings.get('extract_js', False):
+            if js_content:
+                results[url]['js'] = js_content[0]
+            else:
+                # Fetch JavaScript from the web if not in the database
+                _, extra_info = fetch_html([url], {'extract_js': True})
+                results[url]['js'] = extra_info.get(url, {}).get('js', [])
+
     return results
 
 #region OK

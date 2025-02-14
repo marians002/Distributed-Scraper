@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request
 import socket
 from flask_cors import CORS
 
@@ -27,12 +27,11 @@ def scrape():
     }
 
     response = send_request_to_server(url, settings)
-    return jsonify(response)
+    return response
 
 #region OK
 def send_request_to_server(url, settings):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        print(SERVER_IP, SERVER_PORT)
         s.connect((SERVER_IP, SERVER_PORT))
         print("Successfully connected")
         request_data = str({'url': url, 'settings': settings})
@@ -48,7 +47,30 @@ def send_request_to_server(url, settings):
             data += part
 
         print("Received response from server")
-        return eval(data.decode())
+
+        decoded = data.decode()
+        response = eval(decoded)
+        return format_response(response)
+
+
+def format_response(response):
+    """
+    Formats the response to make it more visually appealing and removes brackets/quotes.
+    """
+    formatted_response = []
+    for url, content in response.items():
+        formatted_response.append(f"URL: {url}")
+        if 'css' in content and isinstance(content['css'], list):
+            css_content = content['css'][0] if len(content['css']) == 1 else "\n".join(content['css'])
+            formatted_response.append(f"CSS:\n{css_content}")
+        if 'js' in content and isinstance(content['js'], list):
+            js_content = content['js'][0] if len(content['js']) == 1 else "\n".join(content['js'])
+            formatted_response.append(f"JavaScript:\n{js_content}")
+        if 'html' in content:
+            formatted_response.append(f"HTML:\n{content['html']}")
+        formatted_response.append("")
+
+    return "\n".join(formatted_response)
 
 
 if __name__ == '__main__':

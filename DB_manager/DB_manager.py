@@ -7,6 +7,7 @@ import json
 # Define the database path
 DB_PATH = os.path.join(os.path.dirname(__file__), 'scraper.db')
 
+
 # Initialize the database
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -36,6 +37,7 @@ def init_db():
     conn.commit()
     conn.close()
 
+
 # Store data in the database
 def store_data(url, html_content, links, images):
     conn = sqlite3.connect(DB_PATH)
@@ -47,6 +49,7 @@ def store_data(url, html_content, links, images):
         cursor.execute('INSERT INTO images (url, image_path) VALUES (?, ?)', (url, image))
     conn.commit()
     conn.close()
+
 
 # Fetch data from the database
 def fetch_data_from_db(url):

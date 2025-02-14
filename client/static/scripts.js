@@ -76,7 +76,7 @@ function handleScrape(event) {
       'scrapeOption': scrapeOption
     })
   })
-  .then(response => response.json())
+  .then(response => response.text())
   .then(data => {
     console.log(data);
     // Display the scraped data in the textarea
@@ -84,8 +84,7 @@ function handleScrape(event) {
     const copyBut = document.getElementById('copy-btn');
     scrapedDataTextarea.style.display = 'block';
     copyBut.style.display = 'flex';
-    scrapedDataTextarea.value = JSON.stringify(data, null, 2)
- // Added code to display the data in a textarea
+    scrapedDataTextarea.value = data;
   })
   .catch(error => {
     console.error('Error:', error);
