@@ -6,8 +6,7 @@ app = Flask(__name__)
 CORS(app)
 
 SERVER_IP = "10.0.11.2"
-SERVER_PORT = 5004
-# SERVER_IP = "127.0.0.1"
+SERVER_PORT = 5002
 
 
 @app.route('/')
@@ -21,8 +20,9 @@ def scrape():
     scrape_option = request.form['scrapeOption']
 
     settings = {
-        'extract_images': scrape_option == 'images',
-        'extract_links': scrape_option == 'links'
+        'extract_html': scrape_option == 'html',
+        'extract_css': scrape_option == 'css',
+        'extract_js': scrape_option == 'js'
     }
 
     response = send_request_to_server(url, settings)
@@ -38,7 +38,6 @@ def send_request_to_server(url, settings):
         s.sendall(str(request_data).encode())
         print("Waiting for response from server...")
 
-
         # Receive the response in parts and concatenate them
         data = b""
         while True:
@@ -51,8 +50,5 @@ def send_request_to_server(url, settings):
         return eval(data.decode())
 
 
-# if __name__ == '__main__':
-#     app.run(debug=True)
-
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5007)
+    app.run(host="0.0.0.0", port=5001)

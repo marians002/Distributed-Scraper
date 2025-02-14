@@ -92,6 +92,7 @@ function handleScrape(event) {
   });
 }
 
+// Function to copy text to clipboard
 function copyToClipboard() {
   const textarea = document.getElementById('scrapedData');
   textarea.select();

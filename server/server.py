@@ -22,19 +22,21 @@ def scrape_endpoint():
 def scrape(urls, settings):
     results = {}
     for url in urls:
-        html_content, links, images = fetch_data_from_db(url)
+        # Fetch data from the database
+        html_content, css_content, js_content = fetch_data_from_db(url)
         if html_content:
             results[url] = {
-                'html': html_content[0],
-                'links': links if settings.get('extract_links', False) else [],
-                'images': images if settings.get('extract_images', False) else []
+                'html': html_content[0] if settings.get('extract_html', False) else None,
+                'css': css_content[0] if settings.get('extract_css', False) else None,
+                'js': js_content[0] if settings.get('extract_js', False) else None,
             }
         else:
+            # Fetch data from the web if not in the database
             html_contents, extra_info = fetch_html([url], settings)
             results[url] = {
-                'html': html_contents.get(url),
-                'links': extra_info.get(url, {}).get('links', []),
-                'images': extra_info.get(url, {}).get('images', [])
+                'html': html_contents.get(url) if settings.get('extract_html', False) else None,
+                'css': extra_info.get(url, {}).get('css', []) if settings.get('extract_css', False) else None,
+                'js': extra_info.get(url, {}).get('js', []) if settings.get('extract_js', False) else None,
             }
     return results
 
@@ -54,7 +56,7 @@ def handle_client_connection(client_socket):
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind(("0.0.0.0", 5004))
+    server_socket.bind(("0.0.0.0", 5002))
     server_socket.listen(5)
     print("Server says: Listening on 0.0.0.0:5002")
 
