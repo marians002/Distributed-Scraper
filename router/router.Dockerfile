@@ -1,7 +1,7 @@
-FROM router:base
-# rm router/
-COPY router/route.sh /root/route.sh
+from router:base
 
-RUN chmod +x /root/route.sh
+copy route.sh /root/route.sh
 
-ENTRYPOINT /root/route.sh
+run chmod +x /root/route.sh
+
+entrypoint /root/route.sh
