@@ -1,31 +1,13 @@
-import os
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-import socket
-import json
+
+DB_MANAGER_URL = "http://0.0.0.0:5008"
 
 def send_request_to_db_manager(request_dict):
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.connect(("0.0.0.0", 5008))
-        print("Connected to DB")
-                
-        server_socket.sendall(str(request_dict).encode())
-        
-        print("WAITING FOR DB RESPONSE")
-        
-        r_data = b""
-        
-        while True:
-            part = server_socket.recv(4096)
-            if not part:
-                break
-            r_data += part
-            
-            
-        print("Recieved data from db")
-        
-        return r_data.decode()
+    action = request_dict['action']
+    response = requests.post(f"{DB_MANAGER_URL}/{action}", json=request_dict)
+    return response.json()
 
 def fetch_html(urls, settings):
     html_contents = {}
