@@ -2,16 +2,37 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from DB_manager import store_data
+import socket
+import json
 
+def send_request_to_db_manager(request_dict):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
+        server_socket.connect(("0.0.0.0", 5008))
+        print("Connected to DB")
+        
+        print("REQUEST DICT IN FETCHER: ", request_dict)
+        
+        server_socket.sendall(str(request_dict).encode())
+        
+        print("WAITING FOR DB RESPONSE")
+        
+        r_data = b""
+        
+        while True:
+            part = server_socket.recv(4096)
+            if not part:
+                break
+            r_data += part
+            
+            
+        print("Recieved data from db")
+        
+        # server_socket.close()
+        return r_data.decode()
 
 def fetch_html(urls, settings):
     html_contents = {}
     extra_info = {}
-
-    # Create 'htmls' directory if it doesn't exist
-    if not os.path.exists('htmls'):
-        os.makedirs('htmls')
 
     for url in urls:
         try:
@@ -62,8 +83,15 @@ def fetch_html(urls, settings):
                 'js': js_content,
             }
 
-            # Store data in the database
-            store_data(url, html_content, css_content, js_content)
+            # Send data to the database manager
+            request_dict = {
+                'action': 'store',
+                'url': url,
+                'html_content': html_content,
+                'links': css_content,
+                'images': js_content
+            }
+            send_request_to_db_manager(request_dict)
 
         except requests.exceptions.RequestException as e:
             print(f"Error fetching {url}: {e}")

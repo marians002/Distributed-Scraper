@@ -1,5 +1,8 @@
 import sqlite3
 import os
+import socket
+import threading
+import json
 
 # Define the database path
 DB_PATH = os.path.join(os.path.dirname(__file__), 'scraper.db')
@@ -58,26 +61,6 @@ def fetch_data_from_db(url):
     conn.close()
     return html_content, links, images
 
-# Show data for a URL
-def show_data(url):
-    html_content, links, images = fetch_data_from_db(url)
-    if html_content:
-        print(f"HTML content for {url}:\n{html_content[0]}")
-    else:
-        print(f"No HTML content found for {url}")
-    if links:
-        print(f"Links for {url}:")
-        for link in links:
-            print(link)
-    else:
-        print(f"No links found for {url}")
-    if images:
-        print(f"Images for {url}:")
-        for image in images:
-            print(image)
-    else:
-        print(f"No images found for {url}")
-
 # Delete data for a URL
 def delete_data(url):
     conn = sqlite3.connect(DB_PATH)
@@ -87,3 +70,68 @@ def delete_data(url):
     cursor.execute('DELETE FROM images WHERE url = ?', (url,))
     conn.commit()
     conn.close()
+
+def receive_all_data(server_socket, buffer_size=2048):
+    """
+    Receive all data from the server socket.
+    """
+    data = b""
+    while True:
+        chunk = server_socket.recv(buffer_size)
+        data += chunk  # Append the received chunk to the data
+        if len(chunk) < buffer_size:  # If the chunk is smaller than the buffer size, we've received all data
+            print("TAMAÑO DEL CHUNK: ", len(chunk))
+            break
+    return data
+
+
+def handle_server_connection(server_socket):       
+
+    print("Receiving data from server")
+    request_data = receive_all_data(server_socket)
+
+    print("REQUEST DATA: ", request_data[0:10], request_data[-10:-1])
+
+    print("Received server data")
+    request_dict = eval(request_data.decode())
+        
+    action = request_dict['action']
+    url = request_dict['url']
+    
+    if action == 'store':
+        html_content = request_dict.get('html_content')
+        links = request_dict.get('links', [])
+        images = request_dict.get('images', [])
+        store_data(url, html_content, links, images)
+        response = {'status': 'OK'}
+    elif action == 'fetch':
+        html_content, links, images = fetch_data_from_db(url)
+        response = {
+            'html_content': html_content[0] if html_content else None,
+            'links': links,
+            'images': images
+        }
+    elif action == 'delete':
+        delete_data(url)
+        response = {'status': 'OK'}
+    else:
+        response = {'status': 'Unknown action'}
+    
+    server_socket.sendall(str(response).encode())
+    print("Response sent")
+    server_socket.close()
+
+def start_DB():
+    DB_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    DB_socket.bind(("0.0.0.0", 5008))
+    DB_socket.listen(5)
+    print("DB says: Listening on 0.0.0.0:5008")
+
+    while True:
+        server_socket, _ = DB_socket.accept()
+        client_handler = threading.Thread(target=handle_server_connection, args=(server_socket,))
+        client_handler.start()
+
+if __name__ == '__main__':
+    init_db()
+    start_DB()

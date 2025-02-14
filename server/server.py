@@ -1,14 +1,18 @@
 from flask import Flask, request, jsonify
-from html_fetcher import fetch_html
-from DB_manager import fetch_data_from_db, init_db
+from html_fetcher import send_request_to_db_manager, fetch_html
 import socket
 import threading
+import json
 
 app = Flask(__name__)
 
-# Initialize the database
-init_db()
-
+# def send_request_to_db_manager(request_dict):
+#     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#     client_socket.connect(("0.0.0.0", 5008))
+#     client_socket.sendall(json.dumps(request_dict).encode())
+#     response_data = client_socket.recv(4096)
+#     client_socket.close()
+#     return json.loads(response_data.decode())
 
 @app.route('/scrape', methods=['POST'])
 def scrape_endpoint():
@@ -18,41 +22,47 @@ def scrape_endpoint():
     results = scrape(urls, settings)
     return jsonify(results)
 
-
 def scrape(urls, settings):
     results = {}
     for url in urls:
         # Fetch data from the database
-        html_content, css_content, js_content = fetch_data_from_db(url)
+        request_dict = {'action': 'fetch', 'url': url}
+        response = send_request_to_db_manager(request_dict)
+        response = eval(response)
+        html_content = response.get('html_content')
+        links = response.get('links', [])
+        images = response.get('images', [])
+        
         if html_content:
             results[url] = {
-                'html': html_content[0] if settings.get('extract_html', False) else None,
-                'css': css_content[0] if settings.get('extract_css', False) else None,
-                'js': js_content[0] if settings.get('extract_js', False) else None,
+                'html': html_content if settings.get('extract_html', False) else None,
+                'links': links if settings.get('extract_links', False) else None,
+                'images': images if settings.get('extract_images', False) else None,
             }
         else:
             # Fetch data from the web if not in the database
             html_contents, extra_info = fetch_html([url], settings)
             results[url] = {
                 'html': html_contents.get(url) if settings.get('extract_html', False) else None,
-                'css': extra_info.get(url, {}).get('css', []) if settings.get('extract_css', False) else None,
-                'js': extra_info.get(url, {}).get('js', []) if settings.get('extract_js', False) else None,
+                'links': extra_info.get(url, {}).get('links', []) if settings.get('extract_links', False) else None,
+                'images': extra_info.get(url, {}).get('images', []) if settings.get('extract_images', False) else None,
             }
     return results
 
-
+#region OK
 def handle_client_connection(client_socket):
     request_data = client_socket.recv(4096)
     print("Received request data")
     request_dict = eval(request_data.decode())
     url = request_dict['url']
     settings = request_dict['settings']
+    
+    
     results = scrape([url], settings)
     print("Sending results")
     client_socket.sendall(str(results).encode())
     print("Results sent")
     client_socket.close()
-
 
 def start_server():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -64,7 +74,6 @@ def start_server():
         client_socket, _ = server_socket.accept()
         client_handler = threading.Thread(target=handle_client_connection, args=(client_socket,))
         client_handler.start()
-
 
 if __name__ == '__main__':
     threading.Thread(target=start_server).start()
