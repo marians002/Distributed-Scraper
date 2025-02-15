@@ -2,12 +2,14 @@ import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 
-DB_MANAGER_URL = "http://0.0.0.0:5008"
+DB_MANAGER_URL = "http://db_manager1:5008"
+
 
 def send_request_to_db_manager(request_dict):
     action = request_dict['action']
     response = requests.post(f"{DB_MANAGER_URL}/{action}", json=request_dict)
     return response.json()
+
 
 def fetch_html(urls, settings):
     html_contents = {}

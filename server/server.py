@@ -3,6 +3,7 @@ from html_fetcher import send_request_to_db_manager, fetch_html
 
 app = Flask(__name__)
 
+
 @app.route('/scrape', methods=['POST'])
 def scrape_endpoint():
     data = request.json
@@ -10,6 +11,7 @@ def scrape_endpoint():
     settings = data.get('settings', {})
     results = scrape(urls, settings)
     return jsonify(results)
+
 
 def scrape(urls, settings):
     results = {}
@@ -52,6 +54,7 @@ def scrape(urls, settings):
                 results[url]['js'] = extra_info.get(url, {}).get('js', [])
 
     return results
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5002)
