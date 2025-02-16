@@ -1,14 +1,49 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from DB_manager import *
 
-DB_MANAGER_URL = "http://db_manager1:5008"
 
+def scrape(urls, settings):
+    results = {}
+    for url in urls:
+        # Initialize the result dictionary for the current URL
+        results[url] = {}
 
-def send_request_to_db_manager(request_dict):
-    action = request_dict['action']
-    response = requests.post(f"{DB_MANAGER_URL}/{action}", json=request_dict)
-    return response.json()
+        # Fetch data from the database
+        response = fetch_data_from_db(url)
+        html_content = response.get('html_content')
+        css_content = response.get('css', [])
+        js_content = response.get('js', [])
+
+        # Check if HTML is requested and available in the database
+        if settings.get('extract_html', False):
+            if html_content:
+                results[url]['html'] = html_content
+            else:
+                # Fetch HTML from the web if not in the database
+                html_contents, _ = fetch_html([url], {'extract_html': True})
+                results[url]['html'] = html_contents.get(url)
+
+        # Check if CSS is requested and available in the database
+        if settings.get('extract_css', False):
+            if css_content:
+                results[url]['css'] = css_content
+            else:
+                # Fetch CSS from the web if not in the database
+                _, extra_info = fetch_html([url], {'extract_css': True})
+                results[url]['css'] = extra_info.get(url, {}).get('css', [])
+
+        # Check if JavaScript is requested and available in the database
+        if settings.get('extract_js', False):
+            if js_content:
+                results[url]['js'] = js_content
+            else:
+                # Fetch JavaScript from the web if not in the database
+                _, extra_info = fetch_html([url], {'extract_js': True})
+                results[url]['js'] = extra_info.get(url, {}).get('js', [])
+
+    return results
 
 
 def fetch_html(urls, settings):
@@ -76,13 +111,12 @@ def fetch_html(urls, settings):
 
             # Send data to the database manager
             request_dict = {
-                'action': 'store',
                 'url': url,
                 'html_content': html_content,
                 'css': css_content,
                 'js': js_content
             }
-            send_request_to_db_manager(request_dict)
+            store_data(request_dict)
 
         except requests.exceptions.RequestException as e:
             print(f"Error fetching {url}: {e}")
