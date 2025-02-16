@@ -1,4 +1,4 @@
-# Dockerfile
+# db.Dockerfile.base
 FROM server_base:latest
 
 WORKDIR /app

@@ -1,67 +1,91 @@
-import os
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from DB_manager import store_data
+
+DB_MANAGER_URL = "http://db_manager1:5008"
+
+
+def send_request_to_db_manager(request_dict):
+    action = request_dict['action']
+    response = requests.post(f"{DB_MANAGER_URL}/{action}", json=request_dict)
+    return response.json()
 
 
 def fetch_html(urls, settings):
     html_contents = {}
     extra_info = {}
 
-    # Create 'htmls' directory if it doesn't exist
-    if not os.path.exists('htmls'):
-        os.makedirs('htmls')
-
     for url in urls:
         try:
             response = requests.get(url)
             response.raise_for_status()  # Check if the request was successful
             soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Extract HTML
             html_content = soup.prettify()
-            html_contents[url] = html_content
+            html_contents[url] = html_content if settings.get('extract_html', False) else None
 
-            # Always extract images and links
-            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg']
-            images = [urljoin(url, img['src']) for img in soup.find_all('img') if
-                      'src' in img.attrs and any(img['src'].endswith(ext) for ext in image_extensions)]
-            links = [a['href'] for a in soup.find_all('a') if
-                     'href' in a.attrs and (a['href'].startswith('http://') or a['href'].startswith('https://'))]
+            # Extract CSS
+            css_content = []
+            if settings.get('extract_css', False):
+                # Inline CSS
+                for style in soup.find_all('style'):
+                    if style.string:
+                        css_content.append(style.string)
 
-            # Download images and save them in a directory corresponding to each URL
-            image_dir = os.path.join('htmls',
-                                     url.replace('https://', '').replace('http://', '').replace('/', '_') + '_images')
-            if not os.path.exists(image_dir):
-                os.makedirs(image_dir)
+                # External CSS
+                for link in soup.find_all('link', rel='stylesheet'):
+                    css_url = link.get('href')
+                    if css_url:
+                        # Handle relative URLs
+                        if not css_url.startswith(('http://', 'https://')):
+                            css_url = urljoin(url, css_url)
+                        try:
+                            css_response = requests.get(css_url)
+                            css_response.raise_for_status()
+                            css_content.append(css_response.text)
+                        except requests.exceptions.RequestException as e:
+                            print(f"Error fetching CSS {css_url}: {e}")
 
-            downloaded_images = []
-            for img_url in images:
-                try:
-                    img_response = requests.get(img_url)
-                    img_response.raise_for_status()
-                    img_name = os.path.join(image_dir, os.path.basename(img_url))
+            # Extract JavaScript
+            js_content = []
+            if settings.get('extract_js', False):
+                # Inline JS
+                for script in soup.find_all('script'):
+                    if script.string:  # Check if the script tag contains JavaScript code
+                        js_content.append(script.string)
 
-                    downloaded_images.append(img_name)
-                except requests.exceptions.RequestException as e:
-                    print(f"Error downloading image {img_url}: {e}")
+                    # External JS
+                    elif script.get('src'):
+                        js_url = script.get('src')
+                        if not js_url.startswith(('http://', 'https://')):
+                            # Handle relative URLs
+                            js_url = urljoin(url, js_url)
+                        try:
+                            js_response = requests.get(js_url)
+                            js_response.raise_for_status()
+                            js_content.append(js_response.text)
+                        except requests.exceptions.RequestException as e:
+                            print(f"Error fetching JavaScript {js_url}: {e}")
 
-            extra_info[url] = {'images': downloaded_images, 'links': links}
+            # Store all extracted data
+            extra_info[url] = {
+                'css': css_content,
+                'js': js_content,
+            }
 
-            # Store data in the database
-            store_data(url, html_content, links, downloaded_images)
+            # Send data to the database manager
+            request_dict = {
+                'action': 'store',
+                'url': url,
+                'html_content': html_content,
+                'css': css_content,
+                'js': js_content
+            }
+            send_request_to_db_manager(request_dict)
 
         except requests.exceptions.RequestException as e:
             print(f"Error fetching {url}: {e}")
             html_contents[url] = None
 
-    # Filter the results based on settings
-    filtered_extra_info = {}
-    for url, info in extra_info.items():
-        filtered_info = {}
-        if settings.get('extract_images', False):
-            filtered_info['images'] = info['images']
-        if settings.get('extract_links', False):
-            filtered_info['links'] = info['links']
-        filtered_extra_info[url] = filtered_info
-
-    return html_contents, filtered_extra_info
+    return html_contents, extra_info
