@@ -49,12 +49,18 @@ if [ $? -eq 0 ]; then
     echo "Container router removed."    
 fi
 
-docker run -d --name router --cap-add NET_ADMIN router
+docker run -d --rm --name router --cap-add NET_ADMIN -e PYTHONUNBUFFERED=1 router
 echo "Container router executed."
 
 # attach router to client and server networks
 
 docker network connect --ip 10.0.10.254 clients router
 docker network connect --ip 10.0.11.254 servers router
+
+docker run -d --rm --name mcproxy --cap-add NET_ADMIN -e PYTHONUNBUFFERED=1 router
+echo "Container mcproxy executed."
+
+docker network connect --ip 10.0.11.253 servers mcproxy
+docker network connect --ip 10.0.10.253 clients mcproxy
 
 echo "Container router connected to client and server networks."

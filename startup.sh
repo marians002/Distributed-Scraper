@@ -1,7 +1,8 @@
 #!/bin/bash
 
 echo "Running setup"
-./setup_infra.sh
+chmod +x ./multicast/setup_infra.sh
+./multicast/setup_infra.sh
 
 # Function to check if a Docker image exists
 image_exists() {
