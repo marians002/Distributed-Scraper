@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chord Node GUI</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .node-info { margin-bottom: 20px; padding: 15px; background: #f0f0f0; border-radius: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #f8f9fa; }
+        .refresh-btn { 
+            padding: 8px 16px; 
+            background: #4CAF50; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer;
+        }
+        .refresh-btn:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <div class="node-info">
+        <h2>Node Information</h2>
+        <p>ID: <span id="node-id">{{ node.id }}</span></p>
+        <p>IP: {{ node.ip }}:{{ node.port }}</p>
+        <p>Predecessor: <span id="predecessor">{{ node.predecessor.id if node.predecessor else 'None' }}</span></p>
+        <p>Successor: <span id="successor">{{ node.successor.id if node.successor else 'None' }}</span></p>
+    </div>
+
+    <h2>Finger Table</h2>
+    <button onclick="refreshFingerTable()" class="refresh-btn">Refresh</button>
+    <table id="fingerTable">
+        <thead>
+            <tr>
+                <th>Index</th>
+                <th>Start</th>
+                <th>Node ID</th>
+                <th>IP:Port</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Data will be populated by JavaScript -->
+        </tbody>
+    </table>
+
+    <script>
+        function refreshFingerTable() {
+            fetch('/finger')
+                .then(response => response.json())
+                .then(data => {
+                    const tbody = document.querySelector('#fingerTable tbody');
+                    tbody.innerHTML = '';
+                    
+                    data.forEach((entry, index) => {
+                        const start = (parseInt(document.getElementById('node-id').textContent) + Math.pow(2, index));
+                        const maxId = Math.pow(2, 8); // Since M=8
+                        const normalizedStart = start % maxId;
+                        
+                        const row = `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td>${normalizedStart}</td>
+                                <td>${entry ? entry.id : 'None'}</td>
+                                <td>${entry ? `${entry.ip}:${entry.port}` : 'None'}</td>
+                            </tr>
+                        `;
+                        tbody.innerHTML += row;
+                    });
+                });
+        }
+
+        // Initial load and auto-refresh every 3 seconds
+        refreshFingerTable();
+        setInterval(refreshFingerTable, 3000);
+    </script>
+</body>
+</html>
