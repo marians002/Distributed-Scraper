@@ -1,22 +1,71 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+from DB_manager import *
+import logging
 
-DB_MANAGER_URL = "http://db_manager1:5008"
+# Configuración básica de logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def send_request_to_db_manager(request_dict):
-    action = request_dict['action']
-    response = requests.post(f"{DB_MANAGER_URL}/{action}", json=request_dict)
-    return response.json()
+def scrape(urls, settings):
+    results = {}
+    logging.info(f"Starting scrape for URLs: {urls} with settings: {settings}")
+    for url in urls:
+        # Initialize the result dictionary for the current URL
+        results[url] = {}
+
+        # Fetch data from the database
+        response = fetch_data_from_db(url)
+        html_content = response.get('html_content')
+        css_content = response.get('css', [])
+        js_content = response.get('js', [])
+
+        # Check if HTML is requested and available in the database
+        if settings.get('extract_html', False):
+            if html_content:
+                results[url]['html'] = html_content
+                logging.info(f"HTML content for {url} found in database")
+            else:
+                # Fetch HTML from the web if not in the database
+                logging.info(f"Fetching HTML content for {url} from the web")
+                html_contents, _ = fetch_html([url], {'extract_html': True})
+                results[url]['html'] = html_contents.get(url)
+
+        # Check if CSS is requested and available in the database
+        if settings.get('extract_css', False):
+            if css_content:
+                results[url]['css'] = css_content
+                logging.info(f"CSS content for {url} found in database")
+            else:
+                # Fetch CSS from the web if not in the database
+                logging.info(f"Fetching CSS content for {url} from the web")
+                _, extra_info = fetch_html([url], {'extract_css': True})
+                results[url]['css'] = extra_info.get(url, {}).get('css', [])
+
+        # Check if JavaScript is requested and available in the database
+        if settings.get('extract_js', False):
+            if js_content:
+                results[url]['js'] = js_content
+                logging.info(f"JavaScript content for {url} found in database")
+            else:
+                # Fetch JavaScript from the web if not in the database
+                logging.info(f"Fetching JavaScript content for {url} from the web")
+                _, extra_info = fetch_html([url], {'extract_js': True})
+                results[url]['js'] = extra_info.get(url, {}).get('js', [])
+
+    logging.info(f"Scrape completed for URLs: {urls}")
+    return results
 
 
 def fetch_html(urls, settings):
     html_contents = {}
     extra_info = {}
+    logging.info(f"Fetching HTML for URLs: {urls} with settings: {settings}")
 
     for url in urls:
         try:
+            logging.info(f"Fetching content from {url}")
             response = requests.get(url)
             response.raise_for_status()  # Check if the request was successful
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -41,11 +90,12 @@ def fetch_html(urls, settings):
                         if not css_url.startswith(('http://', 'https://')):
                             css_url = urljoin(url, css_url)
                         try:
+                            logging.info(f"Fetching CSS from {css_url}")
                             css_response = requests.get(css_url)
                             css_response.raise_for_status()
                             css_content.append(css_response.text)
                         except requests.exceptions.RequestException as e:
-                            print(f"Error fetching CSS {css_url}: {e}")
+                            logging.error(f"Error fetching CSS {css_url}: {e}")
 
             # Extract JavaScript
             js_content = []
@@ -62,11 +112,12 @@ def fetch_html(urls, settings):
                             # Handle relative URLs
                             js_url = urljoin(url, js_url)
                         try:
+                            logging.info(f"Fetching JavaScript from {js_url}")
                             js_response = requests.get(js_url)
                             js_response.raise_for_status()
                             js_content.append(js_response.text)
                         except requests.exceptions.RequestException as e:
-                            print(f"Error fetching JavaScript {js_url}: {e}")
+                            logging.error(f"Error fetching JavaScript {js_url}: {e}")
 
             # Store all extracted data
             extra_info[url] = {
@@ -76,16 +127,17 @@ def fetch_html(urls, settings):
 
             # Send data to the database manager
             request_dict = {
-                'action': 'store',
                 'url': url,
                 'html_content': html_content,
                 'css': css_content,
                 'js': js_content
             }
-            send_request_to_db_manager(request_dict)
+            logging.info(f"Storing data in database for {url}")
+            store_data(request_dict)
 
         except requests.exceptions.RequestException as e:
-            print(f"Error fetching {url}: {e}")
+            logging.error(f"Error fetching {url}: {e}")
             html_contents[url] = None
 
+    logging.info(f"HTML fetch completed for URLs: {urls}")
     return html_contents, extra_info
