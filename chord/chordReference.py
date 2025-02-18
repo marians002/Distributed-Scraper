@@ -19,6 +19,8 @@ IS_ALIVE = 7
 NOTIFY1 = 8
 STORE_KEY = 9
 SCRAPE_REQUEST = 10
+FIND_RESPONSIBLE = 11
+
 
 def getShaRepr(data: str):
     return int(hashlib.sha1(data.encode()).hexdigest(), 16)

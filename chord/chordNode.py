@@ -6,8 +6,7 @@ from DB_manager import *
 from chordReference import *
 from html_fetcher import scrape as my_scrape
 from flask import Flask, request, jsonify
-
-
+import json
 
 
 class ChordNode:
@@ -396,7 +395,8 @@ class ChordNode:
 
     def scrape_resolve(self, data, conn: socket.socket):
         url = data[1]
-        logging.info(f"Received scrape request for URL: {url}")
+        settings = data[2]
+        logging.info(f"Received scrape request for URL: {url} with settings: {settings}")
         
         # Calcular hash de la URL
         url_hash = getShaRepr(url)
@@ -407,25 +407,32 @@ class ChordNode:
         if responsible_node.id == self.id:
             # Este nodo es responsable
             logging.info(f"Scrape request for {url} confirmed")
-            return "SCRAPE_CONFIRMED: Request received successfully".encode()
+            json_str = my_scrape(url, settings)
+            logging.info(f"RESULTADO DE MY_SCRAPE: {json_str}")
+            json_bytes = json_str.encode("utf-8")
+            conn.sendall(struct.pack("!I", len(json_bytes)))  # Encabezado
+            conn.sendall(json_bytes)  # Datos
         else:
-            # Reenviar al nodo responsable
-            try:
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.connect((responsible_node.ip, responsible_node.port))
-                s.send(f"{SCRAPE_REQUEST},{url}".encode())
-                response = s.recv(102400)
-                conn.sendall(response)
-                s.close()
-            except Exception as e:
-                conn.sendall(f"SCRAPE_ERROR: {str(e)}".encode())
+            pass
     
+    def find_responsible(self, data, conn:socket.socket):
+        url = data[1]
+        logging.info(f"Resolve server_ip for URL: {url}")
+        
+        # Calcular hash de la URL
+        url_hash = getShaRepr(url)
+        
+        # Encontrar nodo responsable
+        responsible_node = self.find_succ(url_hash)
+        conn.sendall(responsible_node.ip.encode())
+        
     def serve_client(self, conn: socket.socket):
         
         data = conn.recv(1024).decode().split(',')
         data_resp = None
         if int(data[0]) not in [3,4]:
             logging.info(f"Operation: {data[0]}")
+            # logging.info(f'Data content: ', data)
         option = int(data[0])
 
         if option == FIND_SUCCESSOR:
@@ -458,8 +465,9 @@ class ChordNode:
             print(self.data)
             conn.sendall(self.data)
         elif option == SCRAPE_REQUEST :
-            msg = self.scrape_resolve(data, conn)
-            conn.sendall(msg)
+            self.scrape_resolve(data, conn)
+        elif option == FIND_RESPONSIBLE:
+            self.find_responsible(data, conn)
         if data_resp == 'alive':
             response = data_resp.encode()
             conn.sendall(response)

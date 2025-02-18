@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from DB_manager import *
 import logging
+import json
 
 # Configuración básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -10,6 +11,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 def scrape(urls, settings):
     results = {}
+    urls = [urls]
     logging.info(f"Starting scrape for URLs: {urls} with settings: {settings}")
     for url in urls:
         # Initialize the result dictionary for the current URL
@@ -22,7 +24,7 @@ def scrape(urls, settings):
         js_content = response.get('js', [])
 
         # Check if HTML is requested and available in the database
-        if settings.get('extract_html', False):
+        if settings == 'html':
             if html_content:
                 results[url]['html'] = html_content
                 logging.info(f"HTML content for {url} found in database")
@@ -33,7 +35,7 @@ def scrape(urls, settings):
                 results[url]['html'] = html_contents.get(url)
 
         # Check if CSS is requested and available in the database
-        if settings.get('extract_css', False):
+        if settings == 'css':
             if css_content:
                 results[url]['css'] = css_content
                 logging.info(f"CSS content for {url} found in database")
@@ -44,7 +46,7 @@ def scrape(urls, settings):
                 results[url]['css'] = extra_info.get(url, {}).get('css', [])
 
         # Check if JavaScript is requested and available in the database
-        if settings.get('extract_js', False):
+        if settings == 'js':
             if js_content:
                 results[url]['js'] = js_content
                 logging.info(f"JavaScript content for {url} found in database")
@@ -55,7 +57,8 @@ def scrape(urls, settings):
                 results[url]['js'] = extra_info.get(url, {}).get('js', [])
 
     logging.info(f"Scrape completed for URLs: {urls}")
-    return results
+    logging.info(f"Scrapping results: {results[urls[0]][settings]}")
+    return json.dumps(results)
 
 
 def fetch_html(urls, settings):

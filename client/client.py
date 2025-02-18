@@ -3,9 +3,11 @@ import requests
 import json
 from flask_cors import CORS
 import socket
-import threading
 import logging
 import struct
+import socket
+import json
+
 
 # Configuración básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -19,10 +21,10 @@ MULTICAST_PORT = 10000
 SERVER_IP = None
 SERVER_PORT = None
 SCRAPE_REQUEST = 10
+FIND_RESPONSIBLE = 11
 
 
-# Añadir esta función en client.py
-def send_scrape_request(url):
+def send_scrape_request(url, settings):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(5)  # Esperar 5 segundos por una respuesta
     sock.bind(("",MULTICAST_PORT))
@@ -60,40 +62,36 @@ def send_scrape_request(url):
     finally:
         sock.close()
     
-    # Asegurar que el servidor está descubierto
-    client_socket.send(f"{SCRAPE_REQUEST},{url}".encode())  # 14 = SCRAPE_REQUEST
-        
-    # Recibir confirmación
-    response = client_socket.recv(1024000).decode()
+    logging.info("Enviando petición de scrape")
+    # buscar el ip del servidor responsable
+    client_socket.send(f"{FIND_RESPONSIBLE},{url}".encode())
+    node_ip = client_socket.recv(1024).decode()
     client_socket.close()
-    return response
-
-def discover_server():
-    # # Create a UDP socket
-    # sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-    # sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # sock.bind(('', MULTICAST_PORT))
-
-    # # Join the multicast group
-    # mreq = socket.inet_aton(MULTICAST_GROUP) + socket.inet_aton('0.0.0.0')
-    # sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-
-    # logging.info("Waiting to discover server...")
-    # while True:
-    #     # Receive the server's broadcast message
-    #     data, _ = sock.recvfrom(1024)
-    #     message = data.decode('utf-8')
-    #     if message.startswith('SERVER_ADDRESS:'):
-    #         _, address = message.split(':')
-    #         SERVER_IP, SERVER_PORT = address.split(',')
-    #         SERVER_PORT = int(SERVER_PORT)
-    #         logging.info(f"Discovered server at {SERVER_IP}:{SERVER_PORT}")
-    #         break
-    # Crear socket multicast
-    pass
+    # Asegurar que el servidor está descubierto
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.setblocking(True)
+    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    client_socket.connect((node_ip, 8001))  # Conectar al puerto 5000 del nodo
+    client_socket.send(f"{SCRAPE_REQUEST},{url},{settings}".encode())
     
+    # Leer tamaño
+    header = client_socket.recv(4)
+    size = struct.unpack("!I", header)[0]
+    # logging.info("Tamaño del json: ", size)
     
-            
+    # Leer datos
+    received = bytearray()
+    while len(received) < size:
+        chunk = client_socket.recv(1024000)
+        if not chunk:
+            break
+        received.extend(chunk)
+    
+    # Procesar
+    data = received.decode("utf-8")
+    logging.info(f"Info del server:  {data}")
+    client_socket.close()
+    return data
 
 
 @app.route('/')
@@ -105,9 +103,11 @@ def home():
 def scrape():
     url = request.form['url']
     logging.info(f"Initiating scrape for URL: {url}")
-    response = send_scrape_request(url)
+    settings = request.form['scrapeOption']
+    logging.info(f"Initiating scrape for settings: {settings}")
+    response = send_scrape_request(url, settings)
     logging.info(f'Respuesta del servidor: {response}')
-    return f"Scrape Status: {response}"
+    return format_response(response)
     
 
 
