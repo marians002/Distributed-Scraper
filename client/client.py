@@ -1,13 +1,9 @@
 from flask import Flask, render_template, request
-import requests
-import json
 from flask_cors import CORS
-import socket
 import logging
 import struct
 import socket
 import json
-
 
 # Configuración básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -34,14 +30,36 @@ def scrape():
     url = request.form['url']
     settings = request.form['scrapeOption']
     logging.info(f"Initiating scrape for URL: {url}. Settings: {settings}")
-    
+
     response = send_scrape_request(url, settings)
     return format_response(response)
+
+
+@app.route('/scrape_file', methods=['POST'])
+def scrape_file():
+    if 'file' not in request.files:
+        return "No file part", 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return "No selected file", 400
+
+    if file and file.filename.endswith('.txt'):
+        urls = file.read().decode('utf-8').splitlines()
+        results = []
+        for url in urls:
+            if url.strip():  # Ensure the URL is not empty
+                response = send_scrape_request(url.strip(), "html")
+                results.append(format_response(response))
+        return "\n".join(results)
+    else:
+        return "Invalid file type. Please upload a .txt file.", 400
+
 
 def send_scrape_request(url, settings):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(5)  # Esperar 5 segundos por una respuesta
-    sock.bind(("",MULTICAST_PORT))
+    sock.bind(("", MULTICAST_PORT))
 
     # Unirse al grupo multicast
     group = socket.inet_aton(MULTICAST_GROUP)
@@ -69,30 +87,30 @@ def send_scrape_request(url, settings):
         client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         client_socket.connect((node_ip, 8001))  # Conectar al puerto 5000 del nodo
         logging.info(f"Conectado al nodo {node_ip}")
-        
+
     except socket.timeout:
-        logging.critical("No se recibió respuesta de ningún nodo.") 
+        logging.critical("No se recibió respuesta de ningún nodo.")
     finally:
         sock.close()
-    
+
     logging.info("Enviando petición de scrape")
-    
-    # Buscar el IP del servidor responsable
+
+    # Buscar la IP del servidor responsable
     client_socket.send(f"{FIND_RESPONSIBLE},{url}".encode())
     node_ip = client_socket.recv(1024).decode()
     client_socket.close()
-    
+
     # Asegurar que el servidor está descubierto
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.setblocking(True)
     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     client_socket.connect((node_ip, 8001))  # Conectar al puerto 8001 del nodo
     client_socket.send(f"{SCRAPE_REQUEST},{url},{settings}".encode())
-    
+
     # Leer tamaño
     header = client_socket.recv(4)
     size = struct.unpack("!I", header)[0]
-    
+
     # Leer datos
     received = bytearray()
     while len(received) < size:
@@ -100,11 +118,11 @@ def send_scrape_request(url, settings):
         if not chunk:
             break
         received.extend(chunk)
-    
+
     # Procesar
     data = received.decode("utf-8")
     client_socket.close()
-    return data   
+    return data
 
 
 def format_response(response_text):

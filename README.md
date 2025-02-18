@@ -12,7 +12,7 @@ This project is a distributed web scraper designed to efficiently gather data fr
    cd Distributed-Scraper
    ```
 
-2. **Install dependencies**:
+2. **Run startup script**:
    ```bash
-   pip install -r requirements.txt
+   ./startup.sh
    ```

@@ -1,3 +1,6 @@
+let linksList = [];
+let currentLinkIndex = 0;
+
 function showLoginForm() {
   const loginForm = document.getElementById('loginForm');
   if (loginForm.style.display === 'none' || loginForm.style.display === '') {
@@ -60,7 +63,6 @@ document.querySelectorAll('.card').forEach(card => {
 // Add copy button
 document.getElementById("copyButton").addEventListener("click", function() { var textarea = document.getElementById("myTextarea"); textarea.select(); document.execCommand("copy"); alert("Text copied to clipboard!"); });
 
-
 function handleScrape(event) {
   event.preventDefault();
   const url = document.getElementById('url').value;
@@ -78,7 +80,6 @@ function handleScrape(event) {
   })
   .then(response => response.text())
   .then(data => {
-    console.log(data);
     // Display the scraped data in the textarea
     const scrapedDataTextarea = document.getElementById('scrapedData');
     const copyBut = document.getElementById('copy-btn');
@@ -91,6 +92,69 @@ function handleScrape(event) {
   });
 }
 
+function handleFileScrape(event) {
+  event.preventDefault(); // Prevent the form from submitting
+
+  const fileInput = document.getElementById('file');
+  const file = fileInput.files[0];
+
+  if (!file) {
+    alert('Please select a file.');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const content = e.target.result;
+    linksList = content.split('\n').filter(link => link.trim() !== '');
+
+    console.log("Number of links: " + linksList.length);
+    console.log("Links: ");
+    for (let i = 0; i < linksList.length; i++) {
+      console.log(linksList[i]);
+    }
+
+    currentLinkIndex = 0;
+  };
+  reader.readAsText(file);
+}
+
+function scrapeNextLink() {
+  if( (currentLinkIndex !== 0) && (currentLinkIndex >= linksList.length) ){
+    alert('No more links to scrape.');
+    return;
+  }
+
+  console.log(currentLinkIndex)
+
+  const url = linksList[currentLinkIndex];
+  const scrapeOption = document.getElementById('scrapeOption').value;
+
+  fetch('/scrape', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      'url': url,
+      'scrapeOption': scrapeOption
+    })
+  })
+  .then(response => response.text())
+  .then(data => {
+    const scrapedDataTextarea = document.getElementById('scrapedData');
+    const copyBut = document.getElementById('copy-btn');
+    scrapedDataTextarea.style.display = 'block';
+    copyBut.style.display = 'flex';
+    scrapedDataTextarea.value = data;
+  })
+  .catch(error => {
+    console.error('Error:', error);
+  });
+  currentLinkIndex++;
+  console.log("after ++ " + currentLinkIndex)
+}
+
 // Function to copy text to clipboard
 function copyToClipboard() {
   const textarea = document.getElementById('scrapedData');
@@ -98,3 +162,6 @@ function copyToClipboard() {
   document.execCommand('copy');
   alert('Copied to clipboard');
 }
+
+document.getElementById('fileUploadForm').addEventListener('submit', handleFileScrape);
+document.getElementById('scrapeNextLinkBtn').addEventListener('click', scrapeNextLink);

@@ -54,6 +54,21 @@
       </form>
     </div>
 
+    <div class="file-upload">
+      <h2>Scrape URLs from File</h2>
+      <form id = "fileUploadForm" onsubmit="handleFileScrape(event)" enctype="multipart/form-data">
+        <div class="form-file">
+          <input type="file" id="file" name="file" accept=".txt" required>
+          <button class="acc-btn" style="display:inline-block">
+            Accept File
+          </button>
+        </div>
+      </form>
+        <button id="scrapeNextLinkBtn" class="btn" style="display:inline-block;" onclick="scrapeNextLink()">
+          Scrape Next Link
+        </button>
+    </div>
+
     <div class="scraped-text">
       <label for="scrapedData"></label>
       <button id="copy-btn" onclick="copyToClipboard()">Copy Scraped Data

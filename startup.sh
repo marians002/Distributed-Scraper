@@ -30,27 +30,6 @@ else
     echo "Client image already exists."
 fi
 
-# # Check and build server_base image
-# if ! image_exists "server_base"; then
-#     echo "Building server_base image..."
-#     docker build -t server_base -f server/Dockerfile.base .
-# else
-#     echo "Server_base image already exists."
-# fi
-
-# # Check and build server image
-# if ! image_exists "server"; then
-#     echo "Building server image..."
-#     docker build -t server -f server/server.Dockerfile .
-# else
-#     echo "Server image already exists."
-# fi
-
-# Run server container
-# echo "Running server container..."
-# docker run --rm -d --name server1 -v ./server/:/app/ --cap-add NET_ADMIN --network servers server
-
-
 
 # Run client container
 echo "Running client container..."

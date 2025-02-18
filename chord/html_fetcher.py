@@ -57,7 +57,6 @@ def scrape(urls, settings):
                 results[url]['js'] = extra_info.get(url, {}).get('js', [])
 
     logging.info(f"Scrape completed for URLs: {urls}")
-    logging.info(f"Scrapping results: {results[urls[0]][settings]}")
     return json.dumps(results)
 
 

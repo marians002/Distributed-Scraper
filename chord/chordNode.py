@@ -6,8 +6,9 @@ from DB_manager import *
 from chordReference import *
 from html_fetcher import scrape
 
+
 class ChordNode:
-    def __init__(self, ip: str, peerId = None, port: int = 8001, m: int = 160):
+    def __init__(self, ip: str, peerId=None, port: int = 8001, m: int = 160):
         self.id = getShaRepr(ip)
         self.ip = ip
         self.port = port
@@ -19,8 +20,8 @@ class ChordNode:
         self.succ2 = self.ref
         self.succ3 = self.ref
         self.data = {}
-        self.replics= []
-        
+        self.replics = []
+
         init_db()
 
         threading.Thread(target=self.stabilize, daemon=True).start()  # Start stabilize thread
@@ -41,7 +42,6 @@ class ChordNode:
         # replic_thread.daemon = True  # El hilo se cierra cuando el programa principal termina
         # replic_thread.start()
 
-
         # Crear socket multicast
         sock_m = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock_m.bind(('', MULTICAST_PORT))
@@ -51,9 +51,8 @@ class ChordNode:
         mreq = struct.pack('4sL', group, socket.INADDR_ANY)
         sock_m.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         logging.info(f"Escuchando en {MULTICAST_GROUP}:{MULTICAST_PORT}...")
-        multicast_thread = threading.Thread(target=self.handle_multicast_discover,args=(sock_m,), daemon=True)
+        multicast_thread = threading.Thread(target=self.handle_multicast_discover, args=(sock_m,), daemon=True)
         multicast_thread.start()
-
 
         self.new_ip = self.discover_server()
         print("discovery_ip: ", self.new_ip)
@@ -61,16 +60,14 @@ class ChordNode:
             threading.Thread(target=self.join, args=(ChordNodeReference(self.new_ip, self.port),), daemon=True).start()
         self.start_server()
 
-    
     @property
     def succ(self):
         return self.finger[0]
-    
+
     @succ.setter
     def succ(self, node: 'ChordNodeReference'):
         with self.lock:
             self.finger[0] = node
-
 
     def _inbetween(self, k: int, start: int, end: int) -> bool:
         """Check if k is in the interval [start, end)."""
@@ -80,20 +77,20 @@ class ChordNode:
         if start < end:
             return start <= k < end
         return start <= k or k < end
-    
+
     def _inrange(self, k: int, start: int, end: int) -> bool:
         """Check if k is in the interval (start, end)."""
         _start = (start + 1) % 2 ** self.m
         return self._inbetween(k, _start, end)
-    
+
     def _inbetweencomp(self, k: int, start: int, end: int) -> bool:
         """Check if k is in the interval (start, end]."""
-        _end = (end - 1) % 2 ** self.m 
+        _end = (end - 1) % 2 ** self.m
         return self._inbetween(k, start, _end)
 
     def find_succ(self, id: int) -> 'ChordNodeReference':
         node = self.find_pred(id)
-        return node.succ 
+        return node.succ
 
     def find_pred(self, id: int) -> 'ChordNodeReference':
         node = self
@@ -119,7 +116,7 @@ class ChordNode:
                     return self.finger[i] if self.finger[i].id != self.id else self
             except:
                 node = self.finger[i]
-                continue    
+                continue
         return self
 
     def join(self, node: 'ChordNodeReference'):
@@ -140,7 +137,7 @@ class ChordNode:
             try:
                 if self.succ:
                     x = self.succ.pred
-                    
+
                     if x.id != self.id:
                         if self.succ.id == self.id or self._inrange(x.id, self.id, self.succ.id):
                             self.succ = x
@@ -179,11 +176,11 @@ class ChordNode:
         logging.info(f"notify with node {node.ip} self {self.ref.ip} pred {self.pred.ip}")
         if (self.pred.id == self.id) or self._inrange(node.id, self.pred.id, self.id):
             self.pred = node
-    
+
     def notify1(self, node: 'ChordNodeReference'):
         self.pred = node
         logging.info(f"new notify1 por node {node} pred {self.pred}")
-    
+
     def fix_fingers(self):
         time.sleep(5)
         while True:
@@ -205,20 +202,20 @@ class ChordNode:
                     args=(sock, message, addr),
                     daemon=True
                 ).start()
-                
+
             except Exception as e:
                 print(f"Error en el hilo de descubrimiento: {e}")
                 break
-    
+
     def handle_broadcast_message(self, sock, message, addr):
         try:
             if message == "DISCOVER_REQUEST":
-                    response = f"SERVER_IP:{SERVER_IP}"
-                    sock.sendto(response.encode('utf-8'), addr)
+                response = f"SERVER_IP:{SERVER_IP}"
+                sock.sendto(response.encode('utf-8'), addr)
         except Exception as e:
             logging.critical(f"Error al manejar mensaje de broadcast: {e}")
 
-    def handle_multicast_discover(self,sock):
+    def handle_multicast_discover(self, sock):
         try:
             while True:
                 data, addr = sock.recvfrom(1024)
@@ -226,14 +223,14 @@ class ChordNode:
                     logging.info("RECIBIDO MENSAJE DE MULTICAST")
                     # Responder con la dirección IP del nodo
                     node_ip = socket.gethostbyname(socket.gethostname())
-                    sock.sendto(node_ip.encode(), (MULTICAST_GROUP,MULTICAST_PORT))
+                    sock.sendto(node_ip.encode(), (MULTICAST_GROUP, MULTICAST_PORT))
                     logging.info(f"Respondí a {MULTICAST_GROUP} con mi IP: {node_ip}")
         except Exception as e:
             print(f"ERROR EN EL hilo de multicast: {e}")
-    
+
     def discover_server(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1) #Permite broadcast
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)  #Permite broadcast
 
         sock.settimeout(5)  # Tiempo máximo para esperar una respuesta
 
@@ -253,7 +250,7 @@ class ChordNode:
                             continue
                         print("server_ip: ", server_ip, "self.ip: ", self.ip)
                         print(f"Servidor encontrado en la IP: {server_ip}")
-                        return server_ip # Devuelve la IP del primer servidor encontrado
+                        return server_ip  # Devuelve la IP del primer servidor encontrado
 
                 except socket.timeout:
                     print("No se encontraron servidores en el tiempo especificado.")
@@ -271,12 +268,12 @@ class ChordNode:
             if self.replics:
                 print("TENGO REPLICA, VOY A MANEJARLA")
                 obj = self.replics.pop(0)
-                if len(obj["nodes"])<3:
+                if len(obj["nodes"]) < 3:
                     if self.ip not in obj["nodes"]:
                         print(f"REPLICANDO ARCHIVO EN NODO: {self.ip}")
-                        self.save_file(obj['name'],obj['type'],obj['content'],1)
+                        self.save_file(obj['name'], obj['type'], obj['content'], 1)
                         obj['nodes'].append(self.ip)
-                    
+
                     # pasarlo al sucesor                    
                     message = self.succ.save_in_replics(obj)
                     if message == "error":
@@ -304,19 +301,19 @@ class ChordNode:
 
             while True:
                 conn, _ = s.accept()
-                threading.Thread(target=self.serve_client, args=(conn,), daemon=True).start() 
+                threading.Thread(target=self.serve_client, args=(conn,), daemon=True).start()
 
     def scrape_resolve(self, data, conn: socket.socket):
         url = data[1]
         settings = data[2]
         logging.info(f"Received scrape request for URL: {url} with settings: {settings}")
-        
+
         # Calcular hash de la URL
         url_hash = getShaRepr(url)
-        
+
         # Encontrar nodo responsable
         responsible_node = self.find_succ(url_hash)
-        
+
         if responsible_node.id == self.id:
             # Este nodo es responsable
             logging.info(f"Scrape request for {url} confirmed")
@@ -326,78 +323,79 @@ class ChordNode:
             conn.sendall(json_bytes)  # Datos
         else:
             pass
-    
-    def find_responsible(self, data, conn:socket.socket):
+
+    def find_responsible(self, data, conn: socket.socket):
         url = data[1]
         logging.info(f"Resolve server_ip for URL: {url}")
-        
+
         # Calcular hash de la URL
         url_hash = getShaRepr(url)
-        
+
         # Encontrar nodo responsable
         responsible_node = self.find_succ(url_hash)
         conn.sendall(responsible_node.ip.encode())
-        
+
     def serve_client(self, conn: socket.socket):
-        
+
         data = conn.recv(1024).decode().split(',')
         data_resp = None
-        if int(data[0]) not in [3,4]:
+        if int(data[0]) not in [3, 4]:
             logging.info(f"Operation: {data[0]}")
         option = int(data[0])
 
         if option == FIND_SUCCESSOR:
             id = int(data[1])
             data_resp = self.find_succ(id)
-        
+
         elif option == FIND_PREDECESSOR:
             id = int(data[1])
             data_resp = self.find_pred(id)
-        
+
         elif option == GET_SUCCESSOR:
             data_resp = self.succ
-        
+
         elif option == GET_PREDECESSOR:
             data_resp = self.pred
-        
+
         elif option == NOTIFY:
             id = int(data[1])
             ip = data[2]
             self.notify(ChordNodeReference(ip, self.port))
-        
+
         elif option == CLOSEST_PRECEDING_FINGER:
             id = int(data[1])
             data_resp = self.closest_preceding_finger(id)
-        
+
         elif option == NOTIFY1:
             id = int(data[1])
             ip = data[2]
             self.notify1(ChordNodeReference(ip, self.port))
-        
+
         elif option == IS_ALIVE:
             data_resp = 'alive'
-        
+
         elif option == STORE_KEY:
             print(data)
             key, value = data[1], data[2]
             self.store_key(key, value)
             print(self.data)
             conn.sendall(self.data)
-        
-        elif option == SCRAPE_REQUEST :
+
+        elif option == SCRAPE_REQUEST:
             self.scrape_resolve(data, conn)
-        
+
         elif option == FIND_RESPONSIBLE:
             self.find_responsible(data, conn)
-        
+
         if data_resp == 'alive':
             response = data_resp.encode()
             conn.sendall(response)
-        
+
         elif data_resp:
             response = f'{data_resp.id},{data_resp.ip}'.encode()
             conn.sendall(response)
         conn.close()
+
 
 if __name__ == "__main__":
     ip = socket.gethostbyname(socket.gethostname())

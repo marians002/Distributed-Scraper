@@ -21,8 +21,8 @@ fi
 
 # Run chord container
 echo "Running chord container..."
-docker run -d --name chord1 -v ./chord/:/app/ --cap-add NET_ADMIN --network servers chord
-docker run -d --name chord2 -v ./chord/:/app/ --cap-add NET_ADMIN --network servers chord
-docker run -d --name chord3 -v ./chord/:/app/ --cap-add NET_ADMIN --network servers chord
+docker run --rm -d --name chord1 -v ./chord/:/app/ --cap-add NET_ADMIN --network servers chord
+docker run --rm -d --name chord2 -v ./chord/:/app/ --cap-add NET_ADMIN --network servers chord
+docker run --rm -d --name chord3 -v ./chord/:/app/ --cap-add NET_ADMIN --network servers chord
 
 
