@@ -6,6 +6,8 @@ BROADCAST_PORT = 50000
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 BROADCAST_ADDRESS = '<broadcast>'
 
+MULTICAST_GROUP = '224.0.0.1'
+MULTICAST_PORT = 10000
 # Operation codes
 FIND_SUCCESSOR = 1
 FIND_PREDECESSOR = 2
@@ -16,7 +18,7 @@ CLOSEST_PRECEDING_FINGER = 6
 IS_ALIVE = 7
 NOTIFY1 = 8
 STORE_KEY = 9
-
+SCRAPE_REQUEST = 10
 
 def getShaRepr(data: str):
     return int(hashlib.sha1(data.encode()).hexdigest(), 16)

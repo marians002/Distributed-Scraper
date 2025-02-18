@@ -26,6 +26,3 @@ docker run -d --name chord2 -v ./chord/:/app/ --cap-add NET_ADMIN --network serv
 docker run -d --name chord3 -v ./chord/:/app/ --cap-add NET_ADMIN --network servers chord
 
 
-# Inspect behavior of client1
-echo "Inspecting chord1 logs..."
-docker logs -f chord1

@@ -57,5 +57,5 @@ echo "Running client container..."
 docker run --rm -d --name client1 -v ./client/:/app/ --cap-add NET_ADMIN --network clients client
 
 # Inspect behavior of client1
-echo "Inspecting client1 logs..."
-docker logs -f client1
+echo "Inspecting chord1 logs..."
+docker logs -f chord1
