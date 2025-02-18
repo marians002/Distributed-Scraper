@@ -44,11 +44,6 @@ def discover_server():
             break
 
 
-# Start the server discovery in a separate thread
-discovery_thread = threading.Thread(target=discover_server)
-discovery_thread.daemon = True
-discovery_thread.start()
-
 
 @app.route('/')
 def home():
@@ -57,6 +52,9 @@ def home():
 
 @app.route('/scrape', methods=['POST'])
 def scrape():
+    
+    discover_server()
+
     urls = [request.form['url']]
     scrape_option = request.form['scrapeOption']
     logging.info(f"Received scrape request for URL: {urls[0]} with option: {scrape_option}")

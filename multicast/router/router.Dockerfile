@@ -1,9 +1,9 @@
-from router:base
+FROM router:base
 
-copy route.sh /root/route.sh
+COPY route.sh /root/route.sh
 
-copy multicast_proxy.py /root/multicast_proxy.py
+COPY multicast_proxy.py /root/multicast_proxy.py
 
-run chmod +x /root/route.sh
+RUN chmod +x /root/route.sh
 
-entrypoint /root/route.sh
+ENTRYPOINT /root/route.sh

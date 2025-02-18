@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
-from html_fetcher import fetch_html, scrape
-from DB_manager import init_db, fetch_data_from_db
+from chord.html_fetcher import fetch_html, scrape
+from chord.DB_manager import init_db, fetch_data_from_db
 import socket
 import threading
 import time
