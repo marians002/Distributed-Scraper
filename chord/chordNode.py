@@ -4,10 +4,7 @@ import socket
 import struct
 from DB_manager import *
 from chordReference import *
-from html_fetcher import scrape as my_scrape
-from flask import Flask, request, jsonify
-import json
-
+from html_fetcher import scrape
 
 class ChordNode:
     def __init__(self, ip: str, peerId = None, port: int = 8001, m: int = 160):
@@ -74,90 +71,6 @@ class ChordNode:
         with self.lock:
             self.finger[0] = node
 
-
-    # def save_file(self, file_name, file_type, file_content,r):
-    #     """Guarda un archivo en la base de datos."""
-    #     with self.lock:
-    #         file_hash = compute_hash(file_content)
-    #         self.cursor.execute('SELECT id FROM files WHERE hash = ?', (file_hash,))
-    #         file_record = self.cursor.fetchone()
-
-    #         if file_record:
-    #             file_id = file_record[0]
-    #             self.cursor.execute('SELECT name FROM file_names WHERE file_id = ? AND name = ?', (file_id, file_name))
-    #             name_record = self.cursor.fetchone()
-
-    #             if not name_record:
-    #                 self.cursor.execute('INSERT INTO file_names (file_id, name) VALUES (?, ?)', (file_id, file_name))
-    #                 self.conn.commit()
-    #                 if r == 0: 
-    #                     print("PRIMERA VEZ, CREO PRIMERA REPLICA")
-    #                     self.replics.append({'name':file_name,'type':file_type,'content':file_content,'nodes':[self.ip]})
-    #                 return "Nombre agregado al archivo existente"
-    #             return "El archivo ya existe con ese nombre"
-    #         else:
-    #             self.cursor.execute('INSERT INTO files (hash, content, type) VALUES (?, ?, ?)', (file_hash, file_content, file_type))
-    #             file_id = self.cursor.lastrowid
-    #             self.cursor.execute('INSERT INTO file_names (file_id, name) VALUES (?, ?)', (file_id, file_name))
-    #             self.conn.commit()
-    #             if r == 0: 
-    #                 self.replics.append({'name':file_name,'type':file_type,'content':file_content,'nodes':[self.ip]})
-    #                 print("PRIMERA VEZ, CREO PRIMERA REPLICA")
-    #             return "Archivo subido correctamente"
-
-    # def broadcast_search(self, file_name, file_type):
-    #     """Realiza una búsqueda por broadcast en la red CHORD."""
-    #     results = []
-    #     print("CONFIGURANDO SOCKET")
-    #     broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    #     broadcast_socket.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-    #     broadcast_socket.settimeout(3)  # Tiempo de espera para respuestas
-
-    #     print("ENVIANDO MENSAJE")
-    #     # Enviar mensaje de broadcast
-    #     message = f"{SEARCH_FILE},{file_name},{file_type}"
-    #     broadcast_socket.sendto(message.encode(), (BROADCAST_ADDRESS, BROADCAST_PORT))
-
-    #     def handle_response(m):
-    #         if m.startswith("SEARCH_RESULT~"):
-    #                 print("TENGO RESPUESTA")
-    #                 # Formato: SEARCH_RESULT:result1,result2,...
-    #                 Elements=eval(m.split("~")[1])
-    #                 with self.lock:
-    #                     for e in Elements:
-    #                         if e not in results: results.append(e)
-
-    #     # Recibir respuestas de los nodos
-    #     while True:
-    #         try:
-    #             data, addr = broadcast_socket.recvfrom(1024)
-    #             response = data.decode()
-    #             threading.Thread(
-    #                 target=handle_response,
-    #                 args=(response,),
-    #                 daemon=True
-    #             ).start()
-    #         except socket.timeout:
-    #             print("SE ACABO EL TIEMPO")
-    #             break  # No hay más respuestas
-    #     print("BUSQUEDA TERMINADA")
-    #     broadcast_socket.close()
-    #     print("DEVOLVIENDO RESULTADOS")
-    #     print(results)
-    #     return results
-
-
-    # def search_file(self, file_name, file_type):
-    #     """Busca un archivo en la base de datos."""
-    #     query = '''SELECT fn.name, f.type, f.hash 
-    #     FROM files f JOIN file_names fn ON 
-    #     f.id = fn.file_id WHERE fn.name LIKE ?'''
-    #     params = (f"%{file_name}%",)
-    #     if file_type != "*":
-    #         query += ' AND f.type = ?'
-    #         params += (file_type,)
-    #     self.cursor.execute(query, params)
-    #     return [{"name": row[0], "type": row[1], "hash":row[2], "ip":self.ip} for row in self.cursor.fetchall()]
 
     def _inbetween(self, k: int, start: int, end: int) -> bool:
         """Check if k is in the interval [start, end)."""
@@ -363,8 +276,8 @@ class ChordNode:
                         print(f"REPLICANDO ARCHIVO EN NODO: {self.ip}")
                         self.save_file(obj['name'],obj['type'],obj['content'],1)
                         obj['nodes'].append(self.ip)
-                    #pasarlo al sucesor
                     
+                    # pasarlo al sucesor                    
                     message = self.succ.save_in_replics(obj)
                     if message == "error":
                         self.replics.append(obj)
@@ -390,7 +303,7 @@ class ChordNode:
             s.listen(10)
 
             while True:
-                conn, addr = s.accept()
+                conn, _ = s.accept()
                 threading.Thread(target=self.serve_client, args=(conn,), daemon=True).start() 
 
     def scrape_resolve(self, data, conn: socket.socket):
@@ -407,8 +320,7 @@ class ChordNode:
         if responsible_node.id == self.id:
             # Este nodo es responsable
             logging.info(f"Scrape request for {url} confirmed")
-            json_str = my_scrape(url, settings)
-            logging.info(f"RESULTADO DE MY_SCRAPE: {json_str}")
+            json_str = scrape(url, settings)
             json_bytes = json_str.encode("utf-8")
             conn.sendall(struct.pack("!I", len(json_bytes)))  # Encabezado
             conn.sendall(json_bytes)  # Datos
@@ -432,45 +344,56 @@ class ChordNode:
         data_resp = None
         if int(data[0]) not in [3,4]:
             logging.info(f"Operation: {data[0]}")
-            # logging.info(f'Data content: ', data)
         option = int(data[0])
 
         if option == FIND_SUCCESSOR:
             id = int(data[1])
             data_resp = self.find_succ(id)
+        
         elif option == FIND_PREDECESSOR:
             id = int(data[1])
             data_resp = self.find_pred(id)
+        
         elif option == GET_SUCCESSOR:
             data_resp = self.succ
+        
         elif option == GET_PREDECESSOR:
             data_resp = self.pred
+        
         elif option == NOTIFY:
             id = int(data[1])
             ip = data[2]
             self.notify(ChordNodeReference(ip, self.port))
+        
         elif option == CLOSEST_PRECEDING_FINGER:
             id = int(data[1])
             data_resp = self.closest_preceding_finger(id)
+        
         elif option == NOTIFY1:
             id = int(data[1])
             ip = data[2]
             self.notify1(ChordNodeReference(ip, self.port))
+        
         elif option == IS_ALIVE:
             data_resp = 'alive'
+        
         elif option == STORE_KEY:
             print(data)
             key, value = data[1], data[2]
             self.store_key(key, value)
             print(self.data)
             conn.sendall(self.data)
+        
         elif option == SCRAPE_REQUEST :
             self.scrape_resolve(data, conn)
+        
         elif option == FIND_RESPONSIBLE:
             self.find_responsible(data, conn)
+        
         if data_resp == 'alive':
             response = data_resp.encode()
             conn.sendall(response)
+        
         elif data_resp:
             response = f'{data_resp.id},{data_resp.ip}'.encode()
             conn.sendall(response)

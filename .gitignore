@@ -5,5 +5,5 @@
 *.jpeg
 *.svg
 /client/__pycache__
-/server/__pycache__
-/server/.idea
+/chord/__pycache__
+/chord/.idea

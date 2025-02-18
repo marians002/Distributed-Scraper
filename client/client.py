@@ -24,6 +24,20 @@ SCRAPE_REQUEST = 10
 FIND_RESPONSIBLE = 11
 
 
+@app.route('/')
+def home():
+    return render_template('frontend.html')
+
+
+@app.route('/scrape', methods=['POST'])
+def scrape():
+    url = request.form['url']
+    settings = request.form['scrapeOption']
+    logging.info(f"Initiating scrape for URL: {url}. Settings: {settings}")
+    
+    response = send_scrape_request(url, settings)
+    return format_response(response)
+
 def send_scrape_request(url, settings):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(5)  # Esperar 5 segundos por una respuesta
@@ -50,7 +64,6 @@ def send_scrape_request(url, settings):
             break
 
         # Ahora el cliente puede conectarse directamente al nodo
-        # Ejemplo de conexión TCP:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.setblocking(True)
         client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -63,21 +76,22 @@ def send_scrape_request(url, settings):
         sock.close()
     
     logging.info("Enviando petición de scrape")
-    # buscar el ip del servidor responsable
+    
+    # Buscar el IP del servidor responsable
     client_socket.send(f"{FIND_RESPONSIBLE},{url}".encode())
     node_ip = client_socket.recv(1024).decode()
     client_socket.close()
+    
     # Asegurar que el servidor está descubierto
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.setblocking(True)
     client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    client_socket.connect((node_ip, 8001))  # Conectar al puerto 5000 del nodo
+    client_socket.connect((node_ip, 8001))  # Conectar al puerto 8001 del nodo
     client_socket.send(f"{SCRAPE_REQUEST},{url},{settings}".encode())
     
     # Leer tamaño
     header = client_socket.recv(4)
     size = struct.unpack("!I", header)[0]
-    # logging.info("Tamaño del json: ", size)
     
     # Leer datos
     received = bytearray()
@@ -89,36 +103,8 @@ def send_scrape_request(url, settings):
     
     # Procesar
     data = received.decode("utf-8")
-    logging.info(f"Info del server:  {data}")
     client_socket.close()
-    return data
-
-
-@app.route('/')
-def home():
-    return render_template('frontend.html')
-
-
-@app.route('/scrape', methods=['POST'])
-def scrape():
-    url = request.form['url']
-    logging.info(f"Initiating scrape for URL: {url}")
-    settings = request.form['scrapeOption']
-    logging.info(f"Initiating scrape for settings: {settings}")
-    response = send_scrape_request(url, settings)
-    logging.info(f'Respuesta del servidor: {response}')
-    return format_response(response)
-    
-
-
-def send_request_to_server(url, settings):
-    if SERVER_IP is None or SERVER_PORT is None:
-        logging.warning("Server not discovered yet.")
-        return "Server not discovered yet. Please try again."
-
-    logging.info(f"Sending request to server at {SERVER_IP}:{SERVER_PORT}")
-    response = requests.post(f'http://{SERVER_IP}:{SERVER_PORT}/scrape', json={'url': url, 'settings': settings})
-    return format_response(response.text)
+    return data   
 
 
 def format_response(response_text):
@@ -135,13 +121,13 @@ def format_response(response_text):
 
         # Format the output in a user-friendly way
         formatted_output = f"""
-        Scraped URL: {url}
-        Content Type: {content_type}
-        Content:
-        -------------------------
-        {content}
-        -------------------------
-        """
+Scraped URL: {url}
+Content Type: {content_type}
+Content:
+-------------------------
+{content}
+-------------------------
+"""
 
         return formatted_output
 
