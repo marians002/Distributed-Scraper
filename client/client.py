@@ -125,6 +125,89 @@ def send_scrape_request(url, settings):
     return data
 
 
+def prettify_css(css_code):
+    """
+    Formats the CSS code to make it more readable.
+    """
+    # Remove the list brackets and quotes
+    if isinstance(css_code, list):
+        css_code = css_code[0]
+
+    # Split the CSS code into individual rules
+    css_rules = css_code.split('}')
+
+    # Format each rule with proper indentation and line breaks
+    formatted_css = []
+    for rule in css_rules:
+        if rule.strip():
+            # Split the rule into selector and properties
+            parts = rule.split('{')
+            if len(parts) == 2:
+                selector = parts[0].strip()
+                properties = parts[1].strip()
+
+                # Split properties into individual lines
+                properties = properties.split(';')
+                properties = [prop.strip() for prop in properties if prop.strip()]
+
+                # Format the rule with indentation
+                formatted_rule = f"{selector} {{\n"
+                for prop in properties:
+                    formatted_rule += f"    {prop};\n"
+                formatted_rule += "}"
+                formatted_css.append(formatted_rule)
+
+    # Join the formatted rules with line breaks
+    return "\n\n".join(formatted_css)
+
+
+def prettify_js(js_code):
+    """
+    Formats the JavaScript code to make it more readable by splitting lines
+    based on semicolons, curly braces, and applying proper indentation.
+    """
+    # Remove the list brackets and quotes if the code is in a list format
+    if isinstance(js_code, list):
+        js_code = js_code[0]
+
+    # Initialize variables
+    formatted_js = []
+    indent_level = 0
+    buffer = ""  # Temporary buffer to hold the current line being processed
+
+    # Iterate through each character in the JavaScript code
+    for char in js_code:
+        buffer += char
+
+        # Handle semicolons (end of statement)
+        if char == ';':
+            formatted_js.append('    ' * indent_level + buffer.strip())
+            buffer = ""  # Reset the buffer for the next line
+
+        # Handle opening curly braces (start of a block)
+        elif char == '{':
+            if buffer.strip():  # If there's content before the '{', add it as a line
+                formatted_js.append('    ' * indent_level + buffer.strip())
+            formatted_js.append('    ' * indent_level + '{')
+            indent_level += 1  # Increase indentation for the block
+            buffer = ""  # Reset the buffer for the next line
+
+        # Handle closing curly braces (end of a block)
+        elif char == '}':
+            if buffer.strip():  # If there's content before the '}', add it as a line
+                formatted_js.append('    ' * indent_level + buffer.strip())
+            indent_level -= 1  # Decrease indentation after the block
+            formatted_js.append('    ' * indent_level + '}')
+            buffer = ""  # Reset the buffer for the next line
+
+    # Add any remaining content in the buffer
+    if buffer.strip():
+        formatted_js.append('    ' * indent_level + buffer.strip())
+
+    # Join the formatted lines with line breaks
+    return "\n".join(formatted_js)
+
+
 def format_response(response_text):
     try:
         # Parse the JSON response
@@ -136,6 +219,12 @@ def format_response(response_text):
             "js", "")
         content_type = "HTML" if "html" in response_data[url] else (
             "CSS" if "css" in response_data[url] else "JavaScript")
+
+        # Prettify CSS or JavaScript based on content type
+        if content_type == "CSS":
+            content = prettify_css(content)
+        elif content_type == "JavaScript":
+            content = prettify_js(content)
 
         # Format the output in a user-friendly way
         formatted_output = f"""
