@@ -35,27 +35,6 @@ def scrape():
     return format_response(response)
 
 
-@app.route('/scrape_file', methods=['POST'])
-def scrape_file():
-    if 'file' not in request.files:
-        return "No file part", 400
-
-    file = request.files['file']
-    if file.filename == '':
-        return "No selected file", 400
-
-    if file and file.filename.endswith('.txt'):
-        urls = file.read().decode('utf-8').splitlines()
-        results = []
-        for url in urls:
-            if url.strip():  # Ensure the URL is not empty
-                response = send_scrape_request(url.strip(), "html")
-                results.append(format_response(response))
-        return "\n".join(results)
-    else:
-        return "Invalid file type. Please upload a .txt file.", 400
-
-
 def send_scrape_request(url, settings):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(5)  # Esperar 5 segundos por una respuesta
@@ -167,7 +146,7 @@ def prettify_js(js_code):
     based on semicolons, curly braces, and applying proper indentation.
     """
     # Remove the list brackets and quotes if the code is in a list format
-    if isinstance(js_code, list):
+    if isinstance(js_code, list) and js_code:
         js_code = js_code[0]
 
     # Initialize variables
