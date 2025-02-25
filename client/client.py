@@ -32,12 +32,16 @@ def scrape():
     logging.info(f"Initiating scrape for URL: {url}. Settings: {settings}")
 
     response = send_scrape_request(url, settings)
+    if response == "ERROR_CONEX":
+        return f"""
+                Error al conectarse. Enviar request nuevamente.
+                """
     return format_response(response)
 
 
 def send_scrape_request(url, settings):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.settimeout(5)  # Esperar 5 segundos por una respuesta
+    sock.settimeout(15)  # Esperar 5 segundos por una respuesta
     sock.bind(("", MULTICAST_PORT))
 
     # Unirse al grupo multicast
@@ -74,34 +78,40 @@ def send_scrape_request(url, settings):
 
     logging.info("Enviando petición de scrape")
 
-    # Buscar la IP del servidor responsable
-    client_socket.send(f"{FIND_RESPONSIBLE},{url}".encode())
-    node_ip = client_socket.recv(1024).decode()
-    client_socket.close()
+    try:
+        # Buscar la IP del servidor responsable
+        client_socket.send(f"{FIND_RESPONSIBLE},{url}".encode())
+        node_ip = client_socket.recv(1024).decode()
+        client_socket.close()
 
-    # Asegurar que el servidor está descubierto
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.setblocking(True)
-    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    client_socket.connect((node_ip, 8001))  # Conectar al puerto 8001 del nodo
-    client_socket.send(f"{SCRAPE_REQUEST},{url},{settings}".encode())
+        # Asegurar que el servidor está descubierto
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.setblocking(True)
+        client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        client_socket.connect((node_ip, 8001))  # Conectar al puerto 8001 del nodo
+        client_socket.send(f"{SCRAPE_REQUEST},{url},{settings}".encode())
 
-    # Leer tamaño
-    header = client_socket.recv(4)
-    size = struct.unpack("!I", header)[0]
+        # Leer tamaño
+        header = client_socket.recv(4)
+        size = struct.unpack("!I", header)[0]
 
-    # Leer datos
-    received = bytearray()
-    while len(received) < size:
-        chunk = client_socket.recv(1024000)
-        if not chunk:
-            break
-        received.extend(chunk)
+        # Leer datos
+        received = bytearray()
+        while len(received) < size:
+            chunk = client_socket.recv(1024000)
+            if not chunk:
+                break
+            received.extend(chunk)
 
-    # Procesar
-    data = received.decode("utf-8")
-    client_socket.close()
-    return data
+        # Procesar
+        data = received.decode("utf-8")
+        client_socket.close()
+        return data
+    except Exception as e:
+        logging.error("Error conectandose. Enviar request nuevamente")
+        client_socket.close()
+        return "ERROR_CONEX"
+
 
 
 def prettify_css(css_code):
