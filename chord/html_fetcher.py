@@ -1,15 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-from DB_manager import *
 import logging
 import json
 
 # Configuración básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
-def scrape(urls, settings):
+def scrape(urls, settings, data):
     results = {}
     urls = [urls]
     logging.info(f"Starting scrape for URLs: {urls} with settings: {settings}")
@@ -17,50 +15,50 @@ def scrape(urls, settings):
         # Initialize the result dictionary for the current URL
         results[url] = {}
 
-        # Fetch data from the database
-        response = fetch_data_from_db(url)
-        html_content = response.get('html_content')
+        # Fetch data from the provided dictionary
+        response = data.get(url, {})
+        html_content = response.get('html')
         css_content = response.get('css', [])
         js_content = response.get('js', [])
 
-        # Check if HTML is requested and available in the database
+        # Check if HTML is requested and available in the dictionary
         if settings == 'html':
             if html_content:
                 results[url]['html'] = html_content
-                logging.info(f"HTML content for {url} found in database")
+                logging.info(f"HTML content for {url} found in dictionary")
             else:
-                # Fetch HTML from the web if not in the database
+                # Fetch HTML from the web if not in the dictionary
                 logging.info(f"Fetching HTML content for {url} from the web")
-                html_contents, _ = fetch_html([url], {'extract_html': True})
+                html_contents, _ = fetch_html([url], {'extract_html': True}, data)
                 results[url]['html'] = html_contents.get(url)
 
-        # Check if CSS is requested and available in the database
+        # Check if CSS is requested and available in the dictionary
         if settings == 'css':
             if css_content:
                 results[url]['css'] = css_content
-                logging.info(f"CSS content for {url} found in database")
+                logging.info(f"CSS content for {url} found in dictionary")
             else:
-                # Fetch CSS from the web if not in the database
+                # Fetch CSS from the web if not in the dictionary
                 logging.info(f"Fetching CSS content for {url} from the web")
-                _, extra_info = fetch_html([url], {'extract_css': True})
+                _, extra_info = fetch_html([url], {'extract_css': True}, data)
                 results[url]['css'] = extra_info.get(url, {}).get('css', [])
 
-        # Check if JavaScript is requested and available in the database
+        # Check if JavaScript is requested and available in the dictionary
         if settings == 'js':
             if js_content:
                 results[url]['js'] = js_content
-                logging.info(f"JavaScript content for {url} found in database")
+                logging.info(f"JavaScript content for {url} found in dictionary")
             else:
-                # Fetch JavaScript from the web if not in the database
+                # Fetch JavaScript from the web if not in the dictionary
                 logging.info(f"Fetching JavaScript content for {url} from the web")
-                _, extra_info = fetch_html([url], {'extract_js': True})
+                _, extra_info = fetch_html([url], {'extract_js': True}, data)
                 results[url]['js'] = extra_info.get(url, {}).get('js', [])
 
     logging.info(f"Scrape completed for URLs: {urls}")
     return json.dumps(results)
 
 
-def fetch_html(urls, settings):
+def fetch_html(urls, settings, data):
     html_contents = {}
     extra_info = {}
     logging.info(f"Fetching HTML for URLs: {urls} with settings: {settings}")
@@ -121,21 +119,18 @@ def fetch_html(urls, settings):
                         except requests.exceptions.RequestException as e:
                             logging.error(f"Error fetching JavaScript {js_url}: {e}")
 
-            # Store all extracted data
+            # Store all extracted data in the dictionary
+            data[url] = {
+                'html': html_content,
+                'css': css_content,
+                'js': js_content
+            }
+
+            # Store all extracted data in extra_info
             extra_info[url] = {
                 'css': css_content,
                 'js': js_content,
             }
-
-            # Send data to the database manager
-            request_dict = {
-                'url': url,
-                'html_content': html_content,
-                'css': css_content,
-                'js': js_content
-            }
-            logging.info(f"Storing data in database for {url}")
-            store_data(request_dict)
 
         except requests.exceptions.RequestException as e:
             logging.error(f"Error fetching {url}: {e}")

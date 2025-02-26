@@ -2,7 +2,6 @@ import threading
 import time
 import socket
 import struct
-from DB_manager import *
 from chordReference import *
 from html_fetcher import scrape
 
@@ -19,10 +18,10 @@ class ChordNode:
         self.lock = threading.Lock()
         self.succ2 = self.ref
         self.succ3 = self.ref
-        self.data = {}
-        self.replics = []
-
-        init_db()
+        self.data = dict()
+        self.replics1 = dict()
+        self.replics2 = dict()
+        self.replics3 = dict()
 
         threading.Thread(target=self.stabilize, daemon=True).start()  # Start stabilize thread
         threading.Thread(target=self.fix_fingers, daemon=True).start()  # Start fix fingers thread
@@ -317,7 +316,7 @@ class ChordNode:
         if responsible_node.id == self.id:
             # Este nodo es responsable
             logging.info(f"Scrape request for {url} confirmed")
-            json_str = scrape(url, settings)
+            json_str = scrape(url, settings, self.data)
             json_bytes = json_str.encode("utf-8")
             conn.sendall(struct.pack("!I", len(json_bytes)))  # Encabezado
             conn.sendall(json_bytes)  # Datos
