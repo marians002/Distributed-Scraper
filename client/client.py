@@ -1,9 +1,12 @@
+import hashlib
+import json
+import logging
+import random
+import socket
+import string
+import struct
 from flask import Flask, render_template, request
 from flask_cors import CORS
-import logging
-import struct
-import socket
-import json
 
 # Configuración básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,10 +28,33 @@ def home():
     return render_template('frontend.html')
 
 
+def generate_pow_challenge():
+    challenge = ''.join(random.choices(string.ascii_letters + string.digits, k=16))
+    return challenge
+
+
+def validate_pow(challenge, nonce, difficulty=4):
+    hash_input = challenge + str(nonce)
+    hash_result = hashlib.sha256(hash_input.encode()).hexdigest()
+    return hash_result.startswith('0' * difficulty)
+
+
+@app.route('/get-pow-challenge')
+def get_pow_challenge():
+    challenge = generate_pow_challenge()
+    return json.dumps({'challenge': challenge})
+
+
 @app.route('/scrape', methods=['POST'])
 def scrape():
     url = request.form['url']
     settings = request.form['scrapeOption']
+    challenge = request.form['challenge']
+    nonce = request.form['nonce']
+
+    if not validate_pow(challenge, nonce):
+        return "Invalid PoW solution. Please try again."
+
     logging.info(f"Initiating scrape for URL: {url}. Settings: {settings}")
 
     response = send_scrape_request(url, settings)
@@ -111,7 +137,6 @@ def send_scrape_request(url, settings):
         logging.error("Error conectandose. Enviar request nuevamente")
         client_socket.close()
         return "ERROR_CONEX"
-
 
 
 def prettify_css(css_code):

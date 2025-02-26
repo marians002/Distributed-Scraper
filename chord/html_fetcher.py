@@ -8,11 +8,15 @@ import json
 # Configuración básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Set the depth for in-depth scraping
+DEPTH = 1
 
-def scrape(urls, settings):
+
+def scrape(urls, settings, depth=DEPTH):
     results = {}
-    urls = [urls]
-    logging.info(f"Starting scrape for URLs: {urls} with settings: {settings}")
+    urls = [urls] if isinstance(urls, str) else urls
+    logging.info(f"Starting scrape for URLs: {urls} with settings: {settings} and depth: {depth}")
+
     for url in urls:
         # Initialize the result dictionary for the current URL
         results[url] = {}
@@ -31,7 +35,7 @@ def scrape(urls, settings):
             else:
                 # Fetch HTML from the web if not in the database
                 logging.info(f"Fetching HTML content for {url} from the web")
-                html_contents, _ = fetch_html([url], {'extract_html': True})
+                html_contents, _ = fetch_html([url], {'extract_html': True}, depth)
                 results[url]['html'] = html_contents.get(url)
 
         # Check if CSS is requested and available in the database
@@ -42,7 +46,7 @@ def scrape(urls, settings):
             else:
                 # Fetch CSS from the web if not in the database
                 logging.info(f"Fetching CSS content for {url} from the web")
-                _, extra_info = fetch_html([url], {'extract_css': True})
+                _, extra_info = fetch_html([url], {'extract_css': True}, depth)
                 results[url]['css'] = extra_info.get(url, {}).get('css', [])
 
         # Check if JavaScript is requested and available in the database
@@ -53,17 +57,17 @@ def scrape(urls, settings):
             else:
                 # Fetch JavaScript from the web if not in the database
                 logging.info(f"Fetching JavaScript content for {url} from the web")
-                _, extra_info = fetch_html([url], {'extract_js': True})
+                _, extra_info = fetch_html([url], {'extract_js': True}, depth)
                 results[url]['js'] = extra_info.get(url, {}).get('js', [])
 
     logging.info(f"Scrape completed for URLs: {urls}")
     return json.dumps(results)
 
 
-def fetch_html(urls, settings):
+def fetch_html(urls, settings, depth=DEPTH):
     html_contents = {}
     extra_info = {}
-    logging.info(f"Fetching HTML for URLs: {urls} with settings: {settings}")
+    logging.info(f"Fetching HTML for URLs: {urls} with settings: {settings} and depth: {depth}")
 
     for url in urls:
         try:
@@ -136,6 +140,14 @@ def fetch_html(urls, settings):
             }
             logging.info(f"Storing data in database for {url}")
             store_data(request_dict)
+
+            # If depth is greater than 0, recursively fetch HTML from links found in the current page
+            if depth > 0:
+                links = soup.find_all('a', href=True)
+                linked_urls = [urljoin(url, link['href']) for link in links]
+                linked_html_contents, linked_extra_info = fetch_html(linked_urls, settings, depth - 1)
+                html_contents.update(linked_html_contents)
+                extra_info.update(linked_extra_info)
 
         except requests.exceptions.RequestException as e:
             logging.error(f"Error fetching {url}: {e}")

@@ -56,7 +56,7 @@
 
     <div class="file-upload">
       <h2>Scrape URLs from File</h2>
-      <form id = "fileUploadForm" onsubmit="handleFileScrape(event)" enctype="multipart/form-data">
+      <form id="fileUploadForm" onsubmit="handleFileScrape(event)" enctype="multipart/form-data">
         <div class="form-file">
           <input type="file" id="file" name="file" accept=".txt" required>
           <button class="acc-btn" style="display:inline-block">
@@ -88,8 +88,11 @@
       <textarea id="scrapedData" rows="15" cols="100"></textarea>
     </div>
 
+    <!-- Add the loading spinner -->
+    <div id="loadingSpinner" class="loading-spinner"></div>
   </div>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <script src="{{ url_for('static', filename='scripts.js') }}"></script>
 </body>
 </html>

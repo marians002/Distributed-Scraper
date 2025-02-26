@@ -61,35 +61,82 @@ document.querySelectorAll('.card').forEach(card => {
 });
 
 // Add copy button
-document.getElementById("copyButton").addEventListener("click", function() { var textarea = document.getElementById("myTextarea"); textarea.select(); document.execCommand("copy"); alert("Text copied to clipboard!"); });
+document.getElementById("copyButton").addEventListener("click", function() {
+  var textarea = document.getElementById("myTextarea");
+  textarea.select();
+  document.execCommand("copy");
+  alert("Text copied to clipboard!");
+});
 
-function handleScrape(event) {
-  event.preventDefault();
-  const url = document.getElementById('url').value;
-  const scrapeOption = document.getElementById('scrapeOption').value;
+async function getPowChallenge() {
+  const response = await fetch('/get-pow-challenge');
+  const data = await response.json();
+  return data.challenge;
+}
 
-  fetch('/scrape', {
+function solvePowChallenge(challenge, difficulty) {
+  let nonce = 0;
+
+  while (true) {
+    const hash = CryptoJS.SHA256(challenge + nonce).toString();
+    if (hash.startsWith('0'.repeat(difficulty))) {
+      console.log(hash)
+      return nonce;
+    }
+    nonce++;
+  }
+}
+
+function showLoadingSpinner() {
+  const spinner = document.getElementById('loadingSpinner');
+  spinner.style.display = 'block';
+}
+
+function hideLoadingSpinner() {
+  const spinner = document.getElementById('loadingSpinner');
+  spinner.style.display = 'none';
+}
+
+async function performScrape(url, scrapeOption) {
+  showLoadingSpinner(); // Show spinner before starting the challenge
+
+  const challenge = await getPowChallenge();
+  const difficulty = 4;
+  const nonce = solvePowChallenge(challenge, difficulty);
+
+  const response = await fetch('/scrape', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: new URLSearchParams({
       'url': url,
-      'scrapeOption': scrapeOption
+      'scrapeOption': scrapeOption,
+      'challenge': challenge,
+      'nonce': nonce
     })
-  })
-  .then(response => response.text())
-  .then(data => {
-    // Display the scraped data in the textarea
+  });
+
+  hideLoadingSpinner(); // Hide spinner after the challenge is solved
+  return response.text();
+}
+
+async function handleScrape(event) {
+  event.preventDefault();
+
+  const url = document.getElementById('url').value;
+  const scrapeOption = document.getElementById('scrapeOption').value;
+
+  try {
+    const data = await performScrape(url, scrapeOption);
     const scrapedDataTextarea = document.getElementById('scrapedData');
     const copyBut = document.getElementById('copy-btn');
     scrapedDataTextarea.style.display = 'block';
     copyBut.style.display = 'flex';
     scrapedDataTextarea.value = data;
-  })
-  .catch(error => {
+  } catch (error) {
     console.error('Error:', error);
-  });
+  }
 }
 
 function handleFileScrape(event) {
@@ -119,40 +166,27 @@ function handleFileScrape(event) {
   reader.readAsText(file);
 }
 
-function scrapeNextLink() {
-  if( (currentLinkIndex !== 0) && (currentLinkIndex >= linksList.length) ){
+async function scrapeNextLink() {
+  if (currentLinkIndex >= linksList.length) {
     alert('No more links to scrape.');
     return;
   }
 
-  console.log(currentLinkIndex)
-
   const url = linksList[currentLinkIndex];
   const scrapeOption = document.getElementById('scrapeOption').value;
 
-  fetch('/scrape', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      'url': url,
-      'scrapeOption': scrapeOption
-    })
-  })
-  .then(response => response.text())
-  .then(data => {
+  try {
+    const data = await performScrape(url, scrapeOption);
     const scrapedDataTextarea = document.getElementById('scrapedData');
     const copyBut = document.getElementById('copy-btn');
     scrapedDataTextarea.style.display = 'block';
     copyBut.style.display = 'flex';
     scrapedDataTextarea.value = data;
-  })
-  .catch(error => {
+  } catch (error) {
     console.error('Error:', error);
-  });
+  }
+
   currentLinkIndex++;
-  console.log("after ++ " + currentLinkIndex)
 }
 
 // Function to copy text to clipboard
