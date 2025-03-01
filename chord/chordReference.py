@@ -18,9 +18,14 @@ NOTIFY = 5
 CLOSEST_PRECEDING_FINGER = 6
 IS_ALIVE = 7
 NOTIFY1 = 8
-STORE_KEY = 9
-SCRAPE_REQUEST = 10
-FIND_RESPONSIBLE = 11
+SCRAPE_REQUEST = 9
+FIND_RESPONSIBLE = 10
+SEND_INFO = 11
+RECEIVE_INFO = 12
+MANAGE_INFO = 13
+ONE_DOWN = 14
+TWO_DOWN = 15
+NEW_NODE = 16
 
 
 def getShaRepr(data: str):
@@ -75,9 +80,6 @@ class ChordNodeReference:
     def alive(self):
         response = self._send_data(IS_ALIVE).decode().split(',')
         return response
-
-    def store_key(self, key: str, value: str):
-        self._send_data(STORE_KEY, f'{key},{value}')
 
     def __str__(self) -> str:
         return f'{self.id},{self.ip},{self.port}'

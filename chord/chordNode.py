@@ -2,9 +2,10 @@ import threading
 import time
 import socket
 import struct
+import json
 from chordReference import *
 from html_fetcher import scrape
-
+from copy import deepcopy
 
 class ChordNode:
     def __init__(self, ip: str, peerId=None, port: int = 8001, m: int = 160):
@@ -21,7 +22,6 @@ class ChordNode:
         self.data = dict()
         self.replics1 = dict()
         self.replics2 = dict()
-        self.replics3 = dict()
 
         threading.Thread(target=self.stabilize, daemon=True).start()  # Start stabilize thread
         threading.Thread(target=self.fix_fingers, daemon=True).start()  # Start fix fingers thread
@@ -36,11 +36,7 @@ class ChordNode:
         discovery_thread = threading.Thread(target=self.handle_discovery, args=(sock,), daemon=True)
         discovery_thread.start()
 
-        # region REPLICATION
-        # replic_thread = threading.Thread(target=self.replicate)
-        # replic_thread.daemon = True  # El hilo se cierra cuando el programa principal termina
-        # replic_thread.start()
-
+        
         # Crear socket multicast
         sock_m = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock_m.bind(('', MULTICAST_PORT))
@@ -130,30 +126,57 @@ class ChordNode:
         print("self.succ: ", self.succ, "self.succ2: ", self.succ2)
 
     def stabilize(self):
-        time.sleep(5)
         """Regular check for correct Chord structure."""
+        time.sleep(5)
         while True:
             try:
+                # checkea si hay un nuevo nodo x entre self y succ
+                # resumen: nuevo nodo en el anillo como sucesor
                 if self.succ:
                     x = self.succ.pred
+                    change :bool = False
 
                     if x.id != self.id:
                         if self.succ.id == self.id or self._inrange(x.id, self.id, self.succ.id):
                             self.succ = x
+                            change = True
+                            # luego de hacer notify, mandar a x a hacerse cargo de las llaves entre x y self
+                            # darle a x las réplicas de las cuales tiene que hacerse cargo
+                            # Replicar llaves de x
                     self.succ2 = self.succ.succ
                     self.succ.notify(self.ref)
+                    if change:
+                        time.sleep(1)
+                        self.send_msg(node_ip=self.succ.ip, op=NEW_NODE)
             except Exception as e:
                 try:
+                    # Sucesor 2 es ahora mi sucesor y le aviso que soy su predecesor
+                    # resumen: perdí a mi sucesor
                     x = self.succ2
                     self.succ = x
                     self.succ2 = self.succ.succ
                     self.succ.notify1(ChordNodeReference(self.ip, self.port))
+                    if self.succ.ip == self.ip:
+                        time.sleep(1)
+                        self.one_down()
+                    else:
+                        time.sleep(1) 
+                        self.send_msg(node_ip=self.succ.ip, op=ONE_DOWN)
                 except:
                     try:
+                        # resumen: perdí dos nodos consecutivos en el anillo
                         x = self.succ3
                         self.succ = x
                         self.succ2 = self.succ.succ
                         self.succ3.notify1(self.ref)
+                        
+                        if self.succ.ip == self.ip:
+                            time.sleep(1)
+                            self.two_down()
+                        else:
+                            time.sleep(1)
+                            self.send_msg(node_ip=self.succ.ip, op=TWO_DOWN)
+                        
                     except Exception as h:
                         print(f"Error in stabilize: {h}")
             try:
@@ -164,7 +187,6 @@ class ChordNode:
                 except:
                     time.sleep(1)
                     continue
-
             print(f"successor : {self.succ}  succ2 {self.succ2} succ3 {self.succ3} predecessor {self.pred}")
             time.sleep(5)
 
@@ -179,7 +201,78 @@ class ChordNode:
     def notify1(self, node: 'ChordNodeReference'):
         self.pred = node
         logging.info(f"new notify1 por node {node} pred {self.pred}")
+    
+    #PONER IFs
+    # doing from node successor of the fallen down
+    def one_down(self):
+        logging.info(f'AJUSTANDO DATA Y REPLICAS CON one_down()')
+        self.manage_info(1)     # data += replics1
+        self.manage_info(3)     # replics1 = replics2
+        self.succ._send_data(op=MANAGE_INFO, data=f'4,')     # succ.replics1 += succ.replics2
+        self.replics2 = self.ask_4_info(self.pred.ip, option=2)     # replics2 = pred.replics1
+        self.send_info(node_ip=self.succ.ip, to_send=2, to_store=3)     # succ.replics2 = replics1
+        self.send_info(node_ip=self.succ2.ip, to_send=1, to_store=3)    # succ2.replics2 = data
+    
+    # doing from node successor of the two fallen down
+    def two_down(self):
+        logging.info(f'AJUSTANDO DATA Y REPLICAS CON two_down()')
+        self.send_msg(node_ip=self.succ.ip, op=MANAGE_INFO, data=f'5,')  # succ.replic1 += succ.replics2 + replics2
+        self.manage_info(2)     # data += replics1 + replics2
+        self.manage_info(node_ip=self.pred.ip, option=6)    # replics1 = pred.data
+        self.manage_info(node_ip=self.pred.ip, option=8)    # replics2 = pred.replics1
+        self.send_info(node_ip=self.succ.ip, to_send=2, to_store=3)     # succ.replcis2 = replics1(now)
+        self.send_info(node_ip=self.succ2.ip, to_send=1, to_store=3)    # succ2.replics2 = data (now)
+        
+    # doing from the new node
+    def new_node(self):
+        logging.info(f'AJUSTANDO DATA Y REPLICAS CON new_node()')
+        self.manage_info(node_ip=self.pred.ip, option=6)    # replics1 <- pred.data
+        self.manage_info(node_ip=self.pred.ip, option=8)    # replics2 <- pred.replics1
+        self.send_msg(node_ip=self.succ.ip, op=MANAGE_INFO, data=f'10,')     # suc.replics2 <- succ.replics1
+        self.manage_info(node_ip=self.succ.ip, option=9)    # data <- pred_keys, succ.datta <- my_keys
+        self.send_info(node_ip=self.succ2.ip, to_send=1, to_store=3)    # succ2.replics2 <- data
+    
+    def split_data(self, node: ChordNodeReference):
+        my_data, pred_data = dict(), dict()
+        
+        for key, value in self.data.items():
+            key_hash = getShaRepr(key)
+            if self._inbetweencomp(key_hash, self.pred.id, self.succ_id):
+                my_data[key] = value
+            else: pred_data[key] = value
+        
+        self.data.update(deepcopy(my_data))
+        return my_data, pred_data
 
+    def manage_info(self, option, node_ip=None):
+        match int(option):
+            case 1:
+                # deepcopy para evitar compartir referencias)
+                self.data.update(deepcopy(self.replics1))
+            case 2:
+                self.data.update(deepcopy(self.replics1))
+                self.data.update(deepcopy(self.replics2))
+            case 3:
+                self.replics1 = deepcopy(self.replics2)
+            case 4:
+                self.replics1.update(deepcopy(self.replics2))
+            case 5:
+                self.replics1.update(deepcopy(self.replics2))
+                pred_replics2 = self.ask_4_info(node_ip=self.pred.ip, option=3)
+                self.replics1.update(deepcopy(pred_replics2))
+            case 6:
+                self.replics1 = deepcopy(self.ask_4_info(node_ip=node_ip, option=1))
+            case 7:
+                self.replics2 = deepcopy(self.ask_4_info(node_ip=node_ip, option=1))
+            case 8:
+                self.replics2 = deepcopy(self.ask_4_info(node_ip=node_ip, option=2))
+            case 9:
+                self.data = deepcopy(self.ask_4_info(node_ip=self.succ.ip, option=4))
+            case 10:
+                self.replics2 = deepcopy(self.replics1)
+            case _:
+                logging.critical(f'OPCION INVÁLIDA en update info: {option}')
+            
     def fix_fingers(self):
         time.sleep(5)
         while True:
@@ -261,36 +354,6 @@ class ChordNode:
         finally:
             sock.close()
 
-    def replicate(self):
-        time.sleep(5)
-        while True:
-            if self.replics:
-                print("TENGO REPLICA, VOY A MANEJARLA")
-                obj = self.replics.pop(0)
-                if len(obj["nodes"]) < 3:
-                    if self.ip not in obj["nodes"]:
-                        print(f"REPLICANDO ARCHIVO EN NODO: {self.ip}")
-                        self.save_file(obj['name'], obj['type'], obj['content'], 1)
-                        obj['nodes'].append(self.ip)
-
-                    # pasarlo al sucesor                    
-                    message = self.succ.save_in_replics(obj)
-                    if message == "error":
-                        self.replics.append(obj)
-                    time.sleep(5)
-            else:
-                time.sleep(5)
-
-    def store_key(self, key, value):
-        key_hash = getShaRepr(key)
-        print("key: ", key, "hash: ", key_hash)
-        if self._inrange(key_hash, self.id, self.succ.id):
-            self.data[key] = value
-        else:
-            node = self.closest_preceding_finger(key_hash)
-            print("node_succ_key: ", node.id)
-            node.store_key(key, value)
-
     def start_server(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.setblocking(True)
@@ -302,6 +365,17 @@ class ChordNode:
                 conn, _ = s.accept()
                 threading.Thread(target=self.serve_client, args=(conn,), daemon=True).start()
 
+    def find_responsible(self, data, conn: socket.socket):
+        url = data[1]
+        logging.info(f"Resolve server_ip for URL: {url}")
+
+        # Calcular hash de la URL
+        url_hash = getShaRepr(url)
+
+        # Encontrar nodo responsable
+        responsible_node = self.find_succ(url_hash)
+        conn.sendall(responsible_node.ip.encode())
+    
     def scrape_resolve(self, data, conn: socket.socket):
         url = data[1]
         settings = data[2]
@@ -316,24 +390,87 @@ class ChordNode:
         if responsible_node.id == self.id:
             # Este nodo es responsable
             logging.info(f"Scrape request for {url} confirmed")
-            json_str = scrape(url, settings, self.data)
+            result = scrape(url, settings, self.data)
+            self.save_replicas(result)
+            json_str = json.dumps(result)
             json_bytes = json_str.encode("utf-8")
             conn.sendall(struct.pack("!I", len(json_bytes)))  # Encabezado
-            conn.sendall(json_bytes)  # Datos
+            conn.sendall(json_bytes) 
         else:
             pass
+    
+    def save_replicas(self, result:dict):    
+        self.send_info(node_ip=self.succ.ip, to_send=4, to_store=4, info=result)
+        self.send_info(node_ip=self.succ2.ip, to_send=4, to_store=5, info=result)
+            
 
-    def find_responsible(self, data, conn: socket.socket):
-        url = data[1]
-        logging.info(f"Resolve server_ip for URL: {url}")
+    def ask_4_info(self, node_ip, option: int) -> dict:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setblocking(True)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.connect((node_ip, 8001))  # Conectar al puerto 8001 del nodo
+                s.sendall(f"{SEND_INFO},{option}".encode('utf-8'))
 
-        # Calcular hash de la URL
-        url_hash = getShaRepr(url)
+                # Recibir el tamaño de los datos
+                header = s.recv(4)
+                size = struct.unpack("!I", header)[0]
 
-        # Encontrar nodo responsable
-        responsible_node = self.find_succ(url_hash)
-        conn.sendall(responsible_node.ip.encode())
+                # Recibir los datos en bloques
+                received = bytearray()
+                while len(received) < size:
+                    chunk = s.recv(1024000)
+                    if not chunk:
+                        break
+                    received.extend(chunk)
 
+                # Decodificar y retornar el diccionario
+                return json.loads(received.decode("utf-8"))
+        except Exception as e:
+            print(f"Error asking for data: {e}")
+            return {}
+    
+    def send_msg(self, node_ip, op: int, data: str = None):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.connect((node_ip, 8001))  # Conectar al puerto 8001 del nodo
+                s.sendall(f"{op},{data}".encode('utf-8'))
+                msg = s.recv(1024)
+                return msg
+        except:
+            logging.critical(f'ERROR en: send_msg()')
+            return b''
+        
+    def send_info(self , node_ip, to_send: int, to_store: int, info = None):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setblocking(True)
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.connect((node_ip, 8001))  # Conectar al puerto 8001 del nodo
+                s.sendall(f"{RECEIVE_INFO},{to_store}".encode('utf-8'))
+
+                msg = s.recv(1024)
+                if msg == "READY":
+                    match to_send:
+                        case 1:
+                            info = self.data
+                        case 2:
+                            info = self.replics1
+                        case 3:
+                            info = self.replics2
+                        case 4:
+                            pass
+                        case _:
+                            logging.critical(f'ERROR en SEND INFO, opción no válida')
+                
+                data_json = json.dumps(info).encode("utf-8")
+                # tamaño de los datos
+                s.sendall(struct.pack("!I", len(data_json)))
+                # datos
+                s.sendall(data_json)
+        except Exception as e:
+            print(f"Error asking for data: {e}")
+            
     def serve_client(self, conn: socket.socket):
 
         data = conn.recv(1024).decode().split(',')
@@ -356,14 +493,14 @@ class ChordNode:
         elif option == GET_PREDECESSOR:
             data_resp = self.pred
 
+        elif option == CLOSEST_PRECEDING_FINGER:
+            id = int(data[1])
+            data_resp = self.closest_preceding_finger(id)
+            
         elif option == NOTIFY:
             id = int(data[1])
             ip = data[2]
             self.notify(ChordNodeReference(ip, self.port))
-
-        elif option == CLOSEST_PRECEDING_FINGER:
-            id = int(data[1])
-            data_resp = self.closest_preceding_finger(id)
 
         elif option == NOTIFY1:
             id = int(data[1])
@@ -372,24 +509,81 @@ class ChordNode:
 
         elif option == IS_ALIVE:
             data_resp = 'alive'
-
-        elif option == STORE_KEY:
-            print(data)
-            key, value = data[1], data[2]
-            self.store_key(key, value)
-            print(self.data)
-            conn.sendall(self.data)
-
+            
         elif option == SCRAPE_REQUEST:
             self.scrape_resolve(data, conn)
 
         elif option == FIND_RESPONSIBLE:
             self.find_responsible(data, conn)
 
+        elif option == SEND_INFO:
+            match int(data[1]):
+                case 1:
+                    info = self.data
+                case 2:
+                    info = self.replics1
+                case 3:
+                    info = self.replics2
+                case 4:
+                    _, info = self.split_data()
+                case _:
+                    logging.critical(f'ERROR en SEND INFO, opción no válida')
+            
+            data_json = json.dumps(info).encode("utf-8")
+            # tamaño de los datos
+            conn.sendall(struct.pack("!I", len(data_json)))
+            # datos
+            conn.sendall(data_json)
+            
+        elif option == RECEIVE_INFO:
+            # Recibir el tamaño de los datos
+            conn.sendall(f'READY'.encode())
+            
+            header = conn.recv(4)
+            size = struct.unpack("!I", header)[0]
+
+            received = bytearray()
+            while len(received) < size:
+                chunk = conn.recv(1024000)
+                if not chunk:
+                    break
+                received.extend(chunk)
+
+            info = json.loads(received.decode("utf-8"))
+            
+            match int(data[1]):
+                case 1:
+                    self.data = deepcopy(info)
+                case 2:
+                    self.replics1 = deepcopy(info)
+                case 3:
+                    self.replics2 = deepcopy(info)
+                case 4:
+                    self.replics1.update(info)
+                case 5:
+                    self.replics2.update(info)
+                case _:
+                    logging.critical(f"ERROR in RECIEVE, wrong option: {option}")
+        
+        elif option == MANAGE_INFO:
+            if len(data) >= 3:
+                self.manage_info(option=data[1], node_ip=data[2])
+            else: 
+                self.manage_info(option=data[1])
+                
+        elif option == ONE_DOWN:
+            self.one_down()
+            
+        elif option == TWO_DOWN:
+            self.two_down()
+            
+        elif option == NEW_NODE:
+            self.new_node()
+        
         if data_resp == 'alive':
             response = data_resp.encode()
             conn.sendall(response)
-
+            
         elif data_resp:
             response = f'{data_resp.id},{data_resp.ip}'.encode()
             conn.sendall(response)
