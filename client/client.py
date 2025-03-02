@@ -49,6 +49,7 @@ def get_pow_challenge():
 def scrape():
     url = request.form['url']
     settings = request.form['scrapeOption']
+    depth = int(request.form.get('depth'))  # Get the depth parameter
     challenge = request.form['challenge']
     nonce = request.form['nonce']
 
@@ -57,7 +58,7 @@ def scrape():
 
     logging.info(f"Initiating scrape for URL: {url}. Settings: {settings}")
 
-    response = send_scrape_request(url, settings)
+    response = send_scrape_request(url, settings, depth)
     if response == "ERROR_CONEX":
         return f"""
                 Error al conectarse. Enviar request nuevamente.
@@ -65,7 +66,7 @@ def scrape():
     return format_response(response)
 
 
-def send_scrape_request(url, settings):
+def send_scrape_request(url, settings, depth):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.settimeout(15)  # Esperar 5 segundos por una respuesta
     sock.bind(("", MULTICAST_PORT))
@@ -115,7 +116,7 @@ def send_scrape_request(url, settings):
         client_socket.setblocking(True)
         client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         client_socket.connect((node_ip, 8001))  # Conectar al puerto 8001 del nodo
-        client_socket.send(f"{SCRAPE_REQUEST},{url},{settings}".encode())
+        client_socket.send(f"{SCRAPE_REQUEST},{url},{settings},{depth}".encode())
 
         # Leer tamaño
         header = client_socket.recv(4)

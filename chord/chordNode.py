@@ -13,8 +13,6 @@ import logging
 # Configuración básica de logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-DEPTH = 1
-
 class ChordNode:
     def __init__(self, ip: str, peerId=None, port: int = 8001, m: int = 160):
         self.id = getShaRepr(ip)
@@ -389,7 +387,8 @@ class ChordNode:
     def scrape_resolve(self, data, conn: socket.socket):
         url = data[1]
         settings = data[2]
-        logging.info(f"Received scrape request for URL: {url} with settings: {settings}")
+        depth = data[3]
+        logging.info(f"Received scrape request for URL: {url} with settings: {settings} and depth: {depth}")
 
         # Calcular hash de la URL
         url_hash = getShaRepr(url)
@@ -400,7 +399,8 @@ class ChordNode:
         if responsible_node.id == self.id:
             # Este nodo es responsable
             logging.info(f"Scrape request for {url} confirmed")
-            json_str = self.scrape(url, settings)
+            result = self.scrape(url, settings, depth)
+            json_str = json.dumps(result)
             json_bytes = json_str.encode("utf-8")
             conn.sendall(struct.pack("!I", len(json_bytes)))  # Encabezado
             conn.sendall(json_bytes) 
@@ -599,8 +599,9 @@ class ChordNode:
             conn.sendall(response)
         conn.close()
 
-    def scrape(self, urls, settings,  depth=DEPTH):
+    def scrape(self, urls, settings,  depth_p=0):
         results = {}
+        depth = int(depth_p)
         urls = [urls] if isinstance(urls, str) else urls
         logging.info(f"Starting scrape for URLs: {urls} with settings: {settings} and depth: {depth}")
 
@@ -647,12 +648,21 @@ class ChordNode:
                     _, extra_info = self.fetch_html([url], {'extract_js': True}, depth)
                     results[url]['js'] = extra_info.get(url, {}).get('js', [])
 
+            # Even if the content is in the dictionary, we need to continue scraping the links
+            if depth > 0 and html_content:
+                soup = BeautifulSoup(html_content, 'html.parser')
+                links = soup.find_all('a', href=True)
+                linked_urls = [urljoin(url, link['href']) for link in links]
+                linked_results = self.scrape(linked_urls, settings, depth - 1)
+                results.update(deepcopy(linked_results))
+                
         logging.info(f"Scrape completed for URLs: {urls}")
-        return json.dumps(results)
+        return results
 
-    def fetch_html(self, urls, settings, depth=DEPTH):
+    def fetch_html(self, urls, settings, depth_p=0):
         html_contents = {}
         extra_info = {}
+        depth = int(depth_p)
         logging.info(f"Fetching HTML for URLs: {urls} with settings: {settings} and depth: {depth}")
 
         for url in urls:
@@ -664,13 +674,11 @@ class ChordNode:
 
                 # Extract HTML
                 html_content = soup.prettify()
-                # html_contents[url] = html_content if settings.get('extract_html', False) else None
                 html_contents[url] = html_content
                 
                 # Extract CSS
                 css_content = []
                 
-                # if settings.get('extract_css', False):
                 # Inline CSS
                 for style in soup.find_all('style'):
                     if style.string:
@@ -693,7 +701,6 @@ class ChordNode:
 
                 # Extract JavaScript
                 js_content = []
-                # if settings.get('extract_js', False):
                 # Inline JS
                 for script in soup.find_all('script'):
                     if script.string:  # Check if the script tag contains JavaScript code
@@ -739,9 +746,8 @@ class ChordNode:
                     links = soup.find_all('a', href=True)
                     linked_urls = [urljoin(url, link['href']) for link in links]
                     linked_html_contents, linked_extra_info = self.fetch_html(linked_urls, settings, depth - 1)
-                    html_contents.update(linked_html_contents)
-                    extra_info.update(linked_extra_info)
-
+                    html_contents.update(deepcopy(linked_html_contents))
+                    extra_info.update(deepcopy(linked_extra_info))
             
             except requests.exceptions.RequestException as e:
                 logging.error(f"Error fetching {url}: {e}")

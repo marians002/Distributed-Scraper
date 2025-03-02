@@ -97,7 +97,7 @@ function hideLoadingSpinner() {
   spinner.style.display = 'none';
 }
 
-async function performScrape(url, scrapeOption) {
+async function performScrape(url, scrapeOption, depth) {
   showLoadingSpinner(); // Show spinner before starting the challenge
 
   const challenge = await getPowChallenge();
@@ -112,6 +112,7 @@ async function performScrape(url, scrapeOption) {
     body: new URLSearchParams({
       'url': url,
       'scrapeOption': scrapeOption,
+      'depth': depth,
       'challenge': challenge,
       'nonce': nonce
     })
@@ -126,9 +127,10 @@ async function handleScrape(event) {
 
   const url = document.getElementById('url').value;
   const scrapeOption = document.getElementById('scrapeOption').value;
+  const depth = document.getElementById('depth').value;
 
   try {
-    const data = await performScrape(url, scrapeOption);
+    const data = await performScrape(url, scrapeOption, depth);
     const scrapedDataTextarea = document.getElementById('scrapedData');
     const copyBut = document.getElementById('copy-btn');
     scrapedDataTextarea.style.display = 'block';
