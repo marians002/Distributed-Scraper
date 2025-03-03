@@ -193,14 +193,11 @@ class ChordNode:
                 except:
                     time.sleep(1)
                     continue
-            print(f"successor : {self.succ}  succ2 {self.succ2} succ3 {self.succ3} predecessor {self.pred}")
             time.sleep(5)
 
     def notify(self, node: 'ChordNodeReference'):
-        logging.info(f"en notify, yo: {self.ip} el entrante: {node.ip}")
         if node.id == self.id:
             return
-        logging.info(f"notify with node {node.ip} self {self.ref.ip} pred {self.pred.ip}")
         if (self.pred.id == self.id) or self._inrange(node.id, self.pred.id, self.id):
             self.pred = node
 
@@ -236,20 +233,23 @@ class ChordNode:
         self.manage_info(node_ip=self.pred.ip, option=6)    # replics1 <- pred.data
         self.manage_info(node_ip=self.pred.ip, option=8)    # replics2 <- pred.replics1
         self.send_msg(node_ip=self.succ.ip, op=MANAGE_INFO, data=f'10,')     # suc.replics2 <- succ.replics1
-        self.manage_info(node_ip=self.succ.ip, option=9)    # data <- pred_keys, succ.datta <- my_keys
+        self.manage_info(node_ip=self.succ.ip, option=9)    # data <- pred_keys, succ.datta <- my_keys, succ.replics1 = pred_keys
         self.send_info(node_ip=self.succ2.ip, to_send=1, to_store=3)    # succ2.replics2 <- data
         logging.info(f'Terminó el método: new_node()')
     
     def split_data(self):
+        logging.info(f'SPLITTING DATA WITH NEW NODE')
         my_data, pred_data = dict(), dict()
         
         for key, value in self.data.items():
             key_hash = getShaRepr(key)
-            if self._inbetweencomp(key_hash, self.pred.id, self.succ.id):
+            if self._inbetweencomp(key_hash, self.pred.id, self.id):
                 my_data[key] = value
-            else: pred_data[key] = value
+            else:
+                pred_data[key] = value
         
-        self.data.update(deepcopy(my_data))
+        self.data = deepcopy(my_data)
+        self.replics1 = deepcopy(pred_data)
         return my_data, pred_data
 
     def manage_info(self, option, node_ip=None):
@@ -373,6 +373,25 @@ class ChordNode:
                 conn, _ = s.accept()
                 threading.Thread(target=self.serve_client, args=(conn,), daemon=True).start()
 
+    def save_keys_dict(self, results: dict):
+        responsibles = dict()
+        logging.info(f'GUARDANDO Y REPLICANDO LLAVES:')
+        for key, info in results.items():
+            responsible_node = self.find_succ(getShaRepr(key)).ip
+            
+            if responsible_node not in responsibles:
+                responsibles[responsible_node] = dict()
+            if info['html'] != None:
+                responsibles[responsible_node][key] = info
+                
+        for node_ip, info in responsibles.items():
+            logging.info(f'GUARDANDO LLAVES DE: {node_ip}')
+            if node_ip == self.ip:
+                self.data.update(deepcopy(info))
+                self.save_replicas(info)
+            else: 
+                self.send_info(node_ip=node_ip, to_send=4, to_store=6, info=info)
+                
     def find_responsible(self, data, conn: socket.socket):
         url = data[1]
         logging.info(f"Resolve server_ip for URL: {url}")
@@ -400,12 +419,13 @@ class ChordNode:
             # Este nodo es responsable
             logging.info(f"Scrape request for {url} confirmed")
             result = self.scrape(url, settings, depth)
+            self.save_keys_dict(result)
             json_str = json.dumps(result)
             json_bytes = json_str.encode("utf-8")
             conn.sendall(struct.pack("!I", len(json_bytes)))  # Encabezado
             conn.sendall(json_bytes) 
         else:
-            pass
+            self.send_info(node_ip=responsible_node.ip, to_send=4, to_store=4, info=result)
     
     def save_replicas(self, result:dict):
         logging.info(f'GUARDANDO LLAVE EN SUCESORES')
@@ -485,7 +505,7 @@ class ChordNode:
 
         data = conn.recv(1024).decode().split(',')
         data_resp = None
-        if int(data[0]) not in [3, 4]:
+        if int(data[0]) not in [3, 4, 5]:
             logging.info(f"Operation: {data[0]}")
         option = int(data[0])
 
@@ -572,6 +592,9 @@ class ChordNode:
                     self.replics1.update(deepcopy(info))
                 case 5:
                     self.replics2.update(deepcopy(info))
+                case 6:
+                    self.data.update(deepcopy(info))
+                    self.save_replicas(info)
                 case _:
                     logging.critical(f"ERROR in RECIEVE, wrong option: {option}")
         
@@ -599,163 +622,96 @@ class ChordNode:
             conn.sendall(response)
         conn.close()
 
-    def scrape(self, urls, settings,  depth_p=0):
+
+    def fetch_html(self, url):
+        result = {}
+        try:
+            logging.info(f"Fetching content from {url}")
+            response = requests.get(url)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            html_content = soup.prettify()
+            
+            # Extraer CSS
+            css_content = []
+            for style in soup.find_all('style'):
+                if style.string:
+                    css_content.append(style.string)
+            for link in soup.find_all('link', rel='stylesheet'):
+                css_url = link.get('href')
+                if css_url:
+                    css_url = urljoin(url, css_url)
+                    try:
+                        css_response = requests.get(css_url)
+                        css_response.raise_for_status()
+                        css_content.append(css_response.text)
+                    except requests.exceptions.RequestException as e:
+                        logging.error(f"Error fetching CSS {css_url}: {e}")
+
+            # Extraer JavaScript
+            js_content = []
+            for script in soup.find_all('script'):
+                if script.string:
+                    js_content.append(script.string)
+                elif script.get('src'):
+                    js_url = script.get('src')
+                    js_url = urljoin(url, js_url)
+                    try:
+                        js_response = requests.get(js_url)
+                        js_response.raise_for_status()
+                        js_content.append(js_response.text)
+                    except requests.exceptions.RequestException as e:
+                        logging.error(f"Error fetching JS {js_url}: {e}")
+            # Enlaces relacionados
+            links = []
+            for link in soup.find_all('a', href=True):
+                links.append(urljoin(url, link['href']))
+
+            result[url] = {
+                'html': html_content,
+                'css': css_content,
+                'js': js_content,
+                'links': links
+            }
+
+        except Exception as e:
+            logging.error(f"Error fetching {url}: {e}")
+            result[url] = {
+                'html': "Ocurrió algún error de conexión con internet (HTML)",
+                'css': "Ocurrió algún error de conexión con internet (CSS)",
+                'js': "Ocurrió algún error de conexión con internet (JS)",
+                'links': []
+            }
+        
+        return result
+
+    def scrape(self, urls, settings, depth_p=0):
         results = {}
         depth = int(depth_p)
+        
         urls = [urls] if isinstance(urls, str) else urls
-        logging.info(f"Starting scrape for URLs: {urls} with settings: {settings} and depth: {depth}")
-
+        
+        logging.info(f"Scrapping started at level: {depth} for URLs ({len(urls)} total)")
         for url in urls:
-            # Initialize the result dictionary for the current URL
-            results[url] = {}
-
-            # Fetch data from the provided dictionary
-            response = self.data.get(url, {})
-            html_content = response.get('html')
-            css_content = response.get('css', [])
-            js_content = response.get('js', [])
-
-            # Check if HTML is requested and available in the dictionary
-            if settings == 'html':
-                if html_content:
-                    results[url]['html'] = html_content
-                    logging.info(f"HTML content for {url} found in dictionary")
-                else:
-                    # Fetch HTML from the web if not in the dictionary
-                    logging.info(f"Fetching HTML content for {url} from the web")
-                    html_contents, _ = self.fetch_html([url], {'extract_html': True}, depth)
-                    results[url]['html'] = html_contents.get(url)
-
-            # Check if CSS is requested and available in the dictionary
-            if settings == 'css':
-                if css_content:
-                    results[url]['css'] = css_content
-                    logging.info(f"CSS content for {url} found in dictionary")
-                else:
-                    # Fetch CSS from the web if not in the dictionary
-                    logging.info(f"Fetching CSS content for {url} from the web")
-                    _, extra_info = self.fetch_html([url], {'extract_css': True}, depth)
-                    results[url]['css'] = extra_info.get(url, {}).get('css', [])
-
-            # Check if JavaScript is requested and available in the dictionary
-            if settings == 'js':
-                if js_content:
-                    results[url]['js'] = js_content
-                    logging.info(f"JavaScript content for {url} found in dictionary")
-                else:
-                    # Fetch JavaScript from the web if not in the dictionary
-                    logging.info(f"Fetching JavaScript content for {url} from the web")
-                    _, extra_info = self.fetch_html([url], {'extract_js': True}, depth)
-                    results[url]['js'] = extra_info.get(url, {}).get('js', [])
-
-            # Even if the content is in the dictionary, we need to continue scraping the links
-            if depth > 0 and html_content:
-                soup = BeautifulSoup(html_content, 'html.parser')
-                links = soup.find_all('a', href=True)
-                linked_urls = [urljoin(url, link['href']) for link in links]
-                linked_results = self.scrape(linked_urls, settings, depth - 1)
+            if url in results:
+                continue
+            # Verificar si ya tenemos los datos
+            if url in self.data:
+                results[url] = self.data[url]
+                logging.info(f"Using cached data for URL: {url}")
+            else:
+                # Buscar en internet nuevo contenido
+                new_data = self.fetch_html(url)
+                results[url] = new_data[url]
+                
+            # Búsqueda en profundidad
+            if depth > 0:
+                linked_urls = results[url].get('links', [])
+                logging.info(f"Scrapping content at depth: {depth} for URL: {url}")
+                linked_results = self.scrape(linked_urls, settings, depth-1)
                 results.update(deepcopy(linked_results))
-                
-        logging.info(f"Scrape completed for URLs: {urls}")
+        logging.info(f"Scrapping ended at level: {depth} for URLs ({len(urls)} total)")
         return results
-
-    def fetch_html(self, urls, settings, depth_p=0):
-        html_contents = {}
-        extra_info = {}
-        depth = int(depth_p)
-        logging.info(f"Fetching HTML for URLs: {urls} with settings: {settings} and depth: {depth}")
-
-        for url in urls:
-            try:
-                logging.info(f"Fetching content from {url}")
-                response = requests.get(url)
-                response.raise_for_status()  # Check if the request was successful
-                soup = BeautifulSoup(response.text, 'html.parser')
-
-                # Extract HTML
-                html_content = soup.prettify()
-                html_contents[url] = html_content
-                
-                # Extract CSS
-                css_content = []
-                
-                # Inline CSS
-                for style in soup.find_all('style'):
-                    if style.string:
-                        css_content.append(style.string)
-
-                # External CSS
-                for link in soup.find_all('link', rel='stylesheet'):
-                    css_url = link.get('href')
-                    if css_url:
-                        # Handle relative URLs
-                        if not css_url.startswith(('http://', 'https://')):
-                            css_url = urljoin(url, css_url)
-                        try:
-                            logging.info(f"Fetching CSS from {css_url}")
-                            css_response = requests.get(css_url)
-                            css_response.raise_for_status()
-                            css_content.append(css_response.text)
-                        except requests.exceptions.RequestException as e:
-                            logging.error(f"Error fetching CSS {css_url}: {e}")
-
-                # Extract JavaScript
-                js_content = []
-                # Inline JS
-                for script in soup.find_all('script'):
-                    if script.string:  # Check if the script tag contains JavaScript code
-                        js_content.append(script.string)
-
-                    # External JS
-                    elif script.get('src'):
-                        js_url = script.get('src')
-                        if not js_url.startswith(('http://', 'https://')):
-                            # Handle relative URLs
-                            js_url = urljoin(url, js_url)
-                        try:
-                            logging.info(f"Fetching JavaScript from {js_url}")
-                            js_response = requests.get(js_url)
-                            js_response.raise_for_status()
-                            js_content.append(js_response.text)
-                        except requests.exceptions.RequestException as e:
-                            logging.error(f"Error fetching JavaScript {js_url}: {e}")
-
-                # Store all extracted data in the dictionary
-                self.data[url] = {
-                    'html': html_content,
-                    'css': css_content,
-                    'js': js_content
-                }
-                
-                result = dict()
-                result[url] = {
-                    'html': html_content,
-                    'css': css_content,
-                    'js': js_content
-                }
-                
-                self.save_replicas(result)
-                # Store all extracted data in extra_info
-                extra_info[url] = {
-                    'css': css_content,
-                    'js': js_content,
-                }
-
-                # If depth is greater than 0, recursively fetch HTML from links found in the current page
-                if depth > 0:
-                    links = soup.find_all('a', href=True)
-                    linked_urls = [urljoin(url, link['href']) for link in links]
-                    linked_html_contents, linked_extra_info = self.fetch_html(linked_urls, settings, depth - 1)
-                    html_contents.update(deepcopy(linked_html_contents))
-                    extra_info.update(deepcopy(linked_extra_info))
-            
-            except requests.exceptions.RequestException as e:
-                logging.error(f"Error fetching {url}: {e}")
-                html_contents[url] = None
-
-        logging.info(f"HTML fetch completed for URLs: {urls}")
-        return html_contents, extra_info
-
 
 if __name__ == "__main__":
     ip = socket.gethostbyname(socket.gethostname())

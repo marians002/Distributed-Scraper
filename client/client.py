@@ -63,12 +63,12 @@ def scrape():
         return f"""
                 Error al conectarse. Enviar request nuevamente.
                 """
-    return format_response(response)
+    return format_response(response, url, settings)
 
 
 def send_scrape_request(url, settings, depth):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.settimeout(15)  # Esperar 5 segundos por una respuesta
+    sock.settimeout(10)  # Esperar 10 segundos por una respuesta
     sock.bind(("", MULTICAST_PORT))
 
     # Unirse al grupo multicast
@@ -223,17 +223,20 @@ def prettify_js(js_code):
     return "\n".join(formatted_js)
 
 
-def format_response(response_text):
+def format_response(response_text, url, settings):
     try:
         # Parse the JSON response
         response_data = json.loads(response_text)
+        
 
-        # Extract the URL and content
-        url = list(response_data.keys())[0]
-        content = response_data[url].get("html", "") or response_data[url].get("css", "") or response_data[url].get(
-            "js", "")
-        content_type = "HTML" if "html" in response_data[url] else (
-            "CSS" if "css" in response_data[url] else "JavaScript")
+        content = response_data[url][settings]
+        
+        
+        # if not content:
+        #     content = "No es usted, somos nosotros"
+        
+        content_type = "HTML" if "html" == settings else (
+            "CSS" if "css" == settings else "JavaScript")
 
         # Prettify CSS or JavaScript based on content type
         if content_type == "CSS":
