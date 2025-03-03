@@ -39,7 +39,7 @@
       <h2>Scrape URLs</h2>
       <form onsubmit="handleScrape(event)">
         <div class="form-group">
-          <label for="url">URL</label>
+          <label for="url"></label>
           <input type="url" id="url" required>
         </div>
         
@@ -55,7 +55,7 @@
 
           <div class="form-group">
             <label for="depth">Depth</label>
-            <input type="number" id="depth" min="0" value="0" required>
+            <input type="number" id="depth" min="0" value="0" required style="border: 1px solid #ddd;">
           </div>
         </div>
 
@@ -94,6 +94,7 @@
           </g>
         </svg>
       </button>
+      <span id="copy-message" style="display: none; color: green; margin-left: 10px;">Copied!</span>
       <textarea id="scrapedData" rows="15" cols="100"></textarea>
     </div>
 

@@ -82,7 +82,12 @@ body {
   display: none;
   width: -webkit-fill-available;
   align-items: center;
+  font-size: 1.5em;
+  color: #243343;
+  font-family: "Segoe-UI", system-ui, sans-serif;
+  font-weight: bold;
 }
+
 
 .copy-svg {
   margin-left: 2%;
@@ -101,7 +106,7 @@ body {
 .form-group input {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 8px solid #ddd;
   border-radius: 4px;
 }
 
@@ -250,4 +255,11 @@ body {
   display: flex;
   justify-content: space-between;
   width: 40%;
+}
+
+#copy-message {
+  display: none;
+  color: green;
+  margin-left: 10px;
+  font-weight: bold;
 }

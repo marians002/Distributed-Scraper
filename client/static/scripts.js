@@ -176,9 +176,10 @@ async function scrapeNextLink() {
 
   const url = linksList[currentLinkIndex];
   const scrapeOption = document.getElementById('scrapeOption').value;
+  const depth = document.getElementById('depth').value; 
 
   try {
-    const data = await performScrape(url, scrapeOption);
+    const data = await performScrape(url, scrapeOption, depth);
     const scrapedDataTextarea = document.getElementById('scrapedData');
     const copyBut = document.getElementById('copy-btn');
     scrapedDataTextarea.style.display = 'block';
@@ -196,7 +197,15 @@ function copyToClipboard() {
   const textarea = document.getElementById('scrapedData');
   textarea.select();
   document.execCommand('copy');
-  alert('Copied to clipboard');
+
+  // Show the "Copied!" message
+  const copyMessage = document.getElementById('copy-message');
+  copyMessage.style.display = 'inline';
+
+  // Hide the message after 3 seconds
+  setTimeout(() => {
+    copyMessage.style.display = 'none';
+  }, 3000);
 }
 
 document.getElementById('fileUploadForm').addEventListener('submit', handleFileScrape);

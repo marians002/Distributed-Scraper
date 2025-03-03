@@ -381,7 +381,7 @@ class ChordNode:
             
             if responsible_node not in responsibles:
                 responsibles[responsible_node] = dict()
-            if info['html'] != None:
+            if info['html'] != "Ocurrió algún error de conexión con internet (HTML)":
                 responsibles[responsible_node][key] = info
                 
         for node_ip, info in responsibles.items():
